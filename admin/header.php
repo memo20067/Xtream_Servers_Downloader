@@ -37,6 +37,9 @@ $currentUser = getCurrentUser();
                 <a class="nav-link" href="plans.php"><i class="bi bi-gem me-1"></i>Subscription Plans</a>
             </li>
             <li class="nav-item">
+                <a class="nav-link" href="news.php"><i class="bi bi-megaphone me-1"></i>News Ticker</a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link" href="settings.php"><i class="bi bi-gear me-1"></i>Site Settings</a>
             </li>
         </ul>

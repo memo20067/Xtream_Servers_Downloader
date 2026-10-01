@@ -48,3 +48,13 @@ CREATE TABLE IF NOT EXISTS playlist_cache (
     last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS news_ticker (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT DEFAULT NULL,
+    message TEXT NOT NULL,
+    severity ENUM('info', 'warning', 'alert') NOT NULL DEFAULT 'info',
+    expires_at DATETIME DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

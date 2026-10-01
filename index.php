@@ -246,6 +246,12 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
     </div>
 </div>
 
+<!-- News Ticker -->
+<?php
+require_once __DIR__ . '/includes/news_ticker.php';
+render_news_ticker();
+?>
+
 <!-- JS Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://vjs.zencdn.net/8.3.0/video.min.js"></script>
