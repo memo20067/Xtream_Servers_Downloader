@@ -29,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $serverErr = "All server fields are required.";
     }
 }
+
+$userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['avatar']) : null;
 ?>
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
@@ -90,7 +92,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <!-- User Info & Subscription -->
             <div class="dropdown">
                 <button class="btn btn-sm btn-outline-light dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
-                    <i class="bi bi-person-circle"></i>
+                    <?php if ($userAvatar): ?>
+                        <img src="<?= $userAvatar ?>" class="rounded-circle" style="width:24px; height:24px; object-fit:cover;">
+                    <?php else: ?>
+                        <i class="bi bi-person-circle"></i>
+                    <?php endif; ?>
                     <span><?= htmlspecialchars($currentUser['username']) ?></span>
                     <?php if (hasPaidSubscription()): ?>
                         <span class="badge bg-success" data-i18n="paid_user">Paid</span>
@@ -99,6 +105,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <?php endif; ?>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark">
+                    <li><a class="dropdown-item" href="profile.php"><i class="bi bi-person-gear me-2"></i>My Profile</a></li>
+                    <li><a class="dropdown-item" href="subscriptions.php"><i class="bi bi-gem me-2"></i>Subscription Plans</a></li>
+                    <li><hr class="dropdown-divider"></li>
                     <?php if (isAdmin()): ?>
                         <li><a class="dropdown-menu-item text-warning fw-bold dropdown-item" href="admin/index.php"><i class="bi bi-speedometer2 me-2"></i><span data-i18n="admin_panel">Admin Panel</span></a></li>
                         <li><hr class="dropdown-divider"></li>
@@ -109,6 +118,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
     </div>
 </nav>
+
+<!-- Pass user subscription status to JS -->
+<script>
+    window.HAS_PAID_SUBSCRIPTION = <?= hasPaidSubscription() ? 'true' : 'false' ?>;
+</script>
 
 <!-- Main App Layout Container -->
 <div id="app-container">

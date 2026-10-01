@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
     const sidebar = document.getElementById('sidebar');
 
+    const hasPaidSub = typeof window.HAS_PAID_SUBSCRIPTION !== 'undefined' ? window.HAS_PAID_SUBSCRIPTION : false;
+
     // Sidebar Toggle Logic
     if (sidebarToggleBtn && sidebar) {
         sidebarToggleBtn.addEventListener('click', () => {
@@ -181,14 +183,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     </button>`;
             } else if (activeTab === 'movies') {
                 const downloadUrl = `api/proxy.php?server_id=${currentServerId}&action=download_stream&type=movie&stream_id=${id}&container_extension=${containerExt}`;
+
+                let downloadBtnHtml = '';
+                if (hasPaidSub) {
+                    downloadBtnHtml = `
+                        <a href="${downloadUrl}" class="btn btn-outline-success btn-sm download-btn" target="_blank" title="${t('download')}">
+                            <i class="bi bi-download"></i>
+                        </a>`;
+                } else {
+                    downloadBtnHtml = `
+                        <button class="btn btn-outline-secondary btn-sm disabled" disabled title="Download requires paid subscription">
+                            <i class="bi bi-lock-fill"></i>
+                        </button>`;
+                }
+
                 actionButtons = `
                     <div class="d-flex gap-1 mt-2">
                         <button class="btn btn-primary btn-sm flex-fill play-btn" data-id="${id}" data-type="movie" data-ext="${containerExt}">
                             <i class="bi bi-play-fill me-1"></i>${t('play')}
                         </button>
-                        <a href="${downloadUrl}" class="btn btn-outline-success btn-sm download-btn" target="_blank" title="${t('download')}">
-                            <i class="bi bi-download"></i>
-                        </a>
+                        ${downloadBtnHtml}
                     </div>`;
             } else if (activeTab === 'series') {
                 actionButtons = `
@@ -289,6 +303,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const ext = ep.container_extension || 'mp4';
                     const epDownloadUrl = `api/proxy.php?server_id=${currentServerId}&action=download_stream&type=series&stream_id=${epId}&container_extension=${ext}`;
 
+                    let epDownloadBtn = '';
+                    if (hasPaidSub) {
+                        epDownloadBtn = `
+                            <a href="${epDownloadUrl}" class="btn btn-outline-success btn-sm" target="_blank" title="${t('download')}">
+                                <i class="bi bi-download me-1"></i>${t('download')}
+                            </a>`;
+                    } else {
+                        epDownloadBtn = `
+                            <button class="btn btn-outline-secondary btn-sm disabled" disabled title="Download requires paid subscription">
+                                <i class="bi bi-lock-fill me-1"></i>${t('download')}
+                            </button>`;
+                    }
+
                     episodesHtml += `
                         <div class="episode-item">
                             <div>
@@ -299,9 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <button class="btn btn-primary btn-sm play-ep-btn" data-id="${epId}" data-ext="${ext}">
                                     <i class="bi bi-play-fill me-1"></i>${t('play')}
                                 </button>
-                                <a href="${epDownloadUrl}" class="btn btn-outline-success btn-sm" target="_blank" title="${t('download')}">
-                                    <i class="bi bi-download me-1"></i>${t('download')}
-                                </a>
+                                ${epDownloadBtn}
                             </div>
                         </div>
                     `;
