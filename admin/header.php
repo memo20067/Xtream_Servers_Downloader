@@ -33,6 +33,12 @@ $currentUser = getCurrentUser();
             <li class="nav-item">
                 <a class="nav-link" href="users.php"><i class="bi bi-people me-1"></i>User Management</a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="plans.php"><i class="bi bi-gem me-1"></i>Subscription Plans</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="settings.php"><i class="bi bi-gear me-1"></i>Site Settings</a>
+            </li>
         </ul>
         <div class="d-flex align-items-center">
             <a href="../index.php" class="btn btn-outline-light btn-sm me-2"><i class="bi bi-play-circle me-1"></i>Main Player Dashboard</a>

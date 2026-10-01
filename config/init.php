@@ -3,20 +3,42 @@
 
 require_once __DIR__ . '/db.php';
 
+function isInstalled() {
+    return getSetting('installed', '0') === '1';
+}
+
 function initializeDatabase() {
     $db = getDBConnection();
     $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
 
     if ($driver === 'sqlite') {
         $db->exec("
+            CREATE TABLE IF NOT EXISTS settings (
+                setting_key VARCHAR(50) PRIMARY KEY,
+                setting_value TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS subscription_plans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name VARCHAR(100) NOT NULL,
+                price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+                features TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username VARCHAR(50) NOT NULL UNIQUE,
                 email VARCHAR(100) NOT NULL UNIQUE,
+                phone VARCHAR(30) NOT NULL DEFAULT '',
                 password VARCHAR(255) NOT NULL,
+                avatar VARCHAR(255) DEFAULT NULL,
                 role VARCHAR(20) NOT NULL DEFAULT 'user',
                 has_paid_subscription TINYINT(1) NOT NULL DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                subscription_plan_id INTEGER DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (subscription_plan_id) REFERENCES subscription_plans(id) ON DELETE SET NULL
             );
 
             CREATE TABLE IF NOT EXISTS servers (
@@ -29,17 +51,45 @@ function initializeDatabase() {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS playlist_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                server_id INTEGER NOT NULL,
+                type VARCHAR(20) NOT NULL,
+                category_id VARCHAR(50) DEFAULT NULL,
+                data TEXT,
+                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+            );
         ");
     } else {
         $db->exec("
+            CREATE TABLE IF NOT EXISTS settings (
+                setting_key VARCHAR(50) PRIMARY KEY,
+                setting_value TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS subscription_plans (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+                features TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(50) NOT NULL UNIQUE,
                 email VARCHAR(100) NOT NULL UNIQUE,
+                phone VARCHAR(30) NOT NULL DEFAULT '',
                 password VARCHAR(255) NOT NULL,
+                avatar VARCHAR(255) DEFAULT NULL,
                 role VARCHAR(20) NOT NULL DEFAULT 'user',
                 has_paid_subscription TINYINT(1) NOT NULL DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                subscription_plan_id INT DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (subscription_plan_id) REFERENCES subscription_plans(id) ON DELETE SET NULL
             );
 
             CREATE TABLE IF NOT EXISTS servers (
@@ -52,16 +102,32 @@ function initializeDatabase() {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS playlist_cache (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                server_id INT NOT NULL,
+                type VARCHAR(20) NOT NULL,
+                category_id VARCHAR(50) DEFAULT NULL,
+                data LONGTEXT,
+                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+            );
         ");
     }
 
-    // Ensure default admin user exists
-    $stmt = $db->prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
-    $stmt->execute();
-    if (!$stmt->fetch()) {
-        $adminPassword = password_hash('admin123', PASSWORD_BCRYPT);
-        $stmt = $db->prepare("INSERT INTO users (username, email, password, role, has_paid_subscription) VALUES (?, ?, ?, 'admin', 1)");
-        $stmt->execute(['admin', 'admin@example.com', $adminPassword]);
+    // Ensure default 3 subscription plans exist if table is empty
+    $stmt = $db->query("SELECT COUNT(*) as cnt FROM subscription_plans");
+    $count = $stmt->fetch()['cnt'];
+    if ($count == 0) {
+        $defaultPlans = [
+            ['Basic Pass', 9.99, 'USD', "Access to standard live TV channels\nHD Quality streaming\nPersonal server integration"],
+            ['Standard Pro', 19.99, 'USD', "Full Live TV & Movie Library\nFHD & 4K Quality streaming\nUnlimited Movie & Series Downloads\nPriority Support"],
+            ['VIP Ultra', 29.99, 'USD', "Full VIP Access to Live, VOD & Series\nMulti-device streaming support\nUnlimited Movie & Series Downloads\n24/7 dedicated support & IPTV server backup"]
+        ];
+        $stmtInsert = $db->prepare("INSERT INTO subscription_plans (name, price, currency, features) VALUES (?, ?, ?, ?)");
+        foreach ($defaultPlans as $plan) {
+            $stmtInsert->execute($plan);
+        }
     }
 }
 
@@ -71,3 +137,12 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 initializeDatabase();
+
+// Redirect to installer if not installed, not CLI mode, and not currently in install script
+if (php_sapi_name() !== 'cli') {
+    $currentScript = $_SERVER['SCRIPT_NAME'] ?? '';
+    if (!isInstalled() && strpos($currentScript, 'install/index.php') === false && strpos($currentScript, 'cron/sync_playlist.php') === false) {
+        header("Location: install/index.php");
+        exit;
+    }
+}

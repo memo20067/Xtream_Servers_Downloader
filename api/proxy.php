@@ -100,6 +100,14 @@ switch ($action) {
         break;
 
     case 'download_stream':
+        // Enforce subscription check for downloading streams
+        if (!hasPaidSubscription()) {
+            header('Content-Type: application/json');
+            http_response_code(403);
+            echo json_encode(['error' => 'Download permission denied. Active paid subscription required.']);
+            exit;
+        }
+
         $type = $_GET['type'] ?? 'movie';
         if (!$streamId) {
             header('Content-Type: application/json');

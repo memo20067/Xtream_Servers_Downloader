@@ -3,14 +3,15 @@
 
 require_once __DIR__ . '/../config/init.php';
 
-function registerUser($username, $email, $password) {
+function registerUser($username, $email, $phone, $password) {
     $db = getDBConnection();
 
     $username = trim($username);
     $email = trim($email);
+    $phone = trim($phone);
 
-    if (empty($username) || empty($email) || empty($password)) {
-        return ['success' => false, 'error' => 'All fields are required.'];
+    if (empty($username) || empty($email) || empty($phone) || empty($password)) {
+        return ['success' => false, 'error' => 'All fields including Mobile Phone Number are required.'];
     }
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -25,8 +26,8 @@ function registerUser($username, $email, $password) {
     }
 
     $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
-    $stmt = $db->prepare("INSERT INTO users (username, email, password, role, has_paid_subscription) VALUES (?, ?, ?, 'user', 0)");
-    $stmt->execute([$username, $email, $hashedPassword]);
+    $stmt = $db->prepare("INSERT INTO users (username, email, phone, password, role, has_paid_subscription) VALUES (?, ?, ?, ?, 'user', 0)");
+    $stmt->execute([$username, $email, $phone, $hashedPassword]);
 
     $userId = $db->lastInsertId();
 
@@ -80,7 +81,7 @@ function getCurrentUser() {
         return null;
     }
     $db = getDBConnection();
-    $stmt = $db->prepare("SELECT id, username, email, role, has_paid_subscription, created_at FROM users WHERE id = ?");
+    $stmt = $db->prepare("SELECT id, username, email, phone, avatar, role, has_paid_subscription, subscription_plan_id, created_at FROM users WHERE id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $user = $stmt->fetch();
 
