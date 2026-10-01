@@ -1,0 +1,5 @@
+node_modules/
+*.sqlite
+php_server.log
+php_server.pid
+screenshots/
