@@ -188,6 +188,54 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
     </main>
 </div>
 
+<!-- Download Resolution Selection Modal -->
+<div class="modal fade" id="downloadResolutionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-panel text-white">
+            <div class="modal-header border-bottom border-secondary">
+                <h5 class="modal-title fw-bold" id="downloadModalTitle"><i class="bi bi-download me-2 text-info"></i>Select Video Quality</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-4">
+                <p class="text-secondary small mb-3" id="downloadItemName"></p>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="4K">
+                        <span><i class="bi bi-badge-4k me-2"></i>Ultra HD 4K (2160p)</span>
+                        <span class="badge bg-danger">4K</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="2K">
+                        <span><i class="bi bi-display me-2"></i>Quad HD 2K (1440p)</span>
+                        <span class="badge bg-warning text-dark">2K</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="1080p">
+                        <span><i class="bi bi-hd-topic me-2"></i>Full HD (1080p)</span>
+                        <span class="badge bg-primary">FHD</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="720p">
+                        <span><i class="bi bi-aspect-ratio me-2"></i>HD (720p)</span>
+                        <span class="badge bg-secondary">HD</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="480p">
+                        <span><i class="bi bi-sd-card me-2"></i>Standard (480p)</span>
+                        <span class="badge bg-dark border">SD</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="360p">
+                        <span><i class="bi bi-device-hdd me-2"></i>Medium (360p)</span>
+                        <span class="badge bg-dark border">360p</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="240p">
+                        <span><i class="bi bi-phone me-2"></i>Low Mobile (240p)</span>
+                        <span class="badge bg-dark border">240p</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer border-top border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Player Modal -->
 <div class="modal fade" id="playerModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">

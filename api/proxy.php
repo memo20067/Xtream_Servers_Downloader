@@ -109,20 +109,42 @@ switch ($action) {
         }
 
         $type = $_GET['type'] ?? 'movie';
+        $resolution = $_GET['resolution'] ?? '1080p';
+        $title = $_GET['title'] ?? ($type === 'series' ? 'Episode' : 'Movie');
+
+        // Sanitize filename for download
+        $cleanTitle = preg_replace('/[^A-Za-z0-9_\-\. ]/', '', $title);
+        if (empty($cleanTitle)) {
+            $cleanTitle = 'video';
+        }
+        $filename = $cleanTitle . '.mp4';
+
         if (!$streamId) {
             header('Content-Type: application/json');
             echo json_encode(['error' => 'Stream ID required.']);
             exit;
         }
 
+        // Always enforce mp4 container extension for downloads
+        $ext = 'mp4';
+
         if ($type === 'movie' || $type === 'vod') {
             $url = $api->getVodStreamUrl($streamId, $ext);
         } elseif ($type === 'series') {
             $url = $api->getSeriesStreamUrl($streamId, $ext);
         } else {
-            $url = $api->getLiveStreamUrl($streamId, 'm3u8');
+            $url = $api->getLiveStreamUrl($streamId, 'mp4');
         }
 
+        // Set response headers to force download in .mp4 format named with title
+        header('Content-Description: File Transfer');
+        header('Content-Type: video/mp4');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate');
+        header('Pragma: public');
+
+        // Redirect or stream from target IPTV host URL
         header("Location: " . $url);
         exit;
 

@@ -182,14 +182,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <i class="bi bi-play-fill me-1"></i>${t('play')}
                     </button>`;
             } else if (activeTab === 'movies') {
-                const downloadUrl = `api/proxy.php?server_id=${currentServerId}&action=download_stream&type=movie&stream_id=${id}&container_extension=${containerExt}`;
-
                 let downloadBtnHtml = '';
                 if (hasPaidSub) {
                     downloadBtnHtml = `
-                        <a href="${downloadUrl}" class="btn btn-outline-success btn-sm download-btn" target="_blank" title="${t('download')}">
+                        <button class="btn btn-outline-success btn-sm trigger-download-btn" data-id="${id}" data-type="movie" data-title="${encodeURIComponent(title)}" data-ext="${containerExt}" title="${t('download')}">
                             <i class="bi bi-download"></i>
-                        </a>`;
+                        </button>`;
                 } else {
                     downloadBtnHtml = `
                         <button class="btn btn-outline-secondary btn-sm disabled" disabled title="Download requires paid subscription">
@@ -245,7 +243,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 openSeriesDetails(id, title);
             });
         });
+
+        document.querySelectorAll('.trigger-download-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = btn.getAttribute('data-id');
+                const type = btn.getAttribute('data-type');
+                const title = decodeURIComponent(btn.getAttribute('data-title'));
+                openDownloadModal(id, type, title);
+            });
+        });
     }
+
+    let pendingDownloadTarget = null;
+
+    function openDownloadModal(id, type, title) {
+        pendingDownloadTarget = { id, type, title };
+        const itemNameEl = document.getElementById('downloadItemName');
+        if (itemNameEl) {
+            itemNameEl.textContent = `Target File: "${title}" (.mp4)`;
+        }
+        const dlModal = new bootstrap.Modal(document.getElementById('downloadResolutionModal'));
+        dlModal.show();
+    }
+
+    document.querySelectorAll('.download-res-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (!pendingDownloadTarget) return;
+            const res = btn.getAttribute('data-res');
+            const { id, type, title } = pendingDownloadTarget;
+
+            const dlUrl = `api/proxy.php?server_id=${currentServerId}&action=download_stream&type=${type}&stream_id=${id}&resolution=${res}&title=${encodeURIComponent(title)}&container_extension=mp4`;
+
+            // Trigger file download
+            const a = document.createElement('a');
+            a.href = dlUrl;
+            a.target = '_blank';
+            a.download = `${title}.mp4`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Hide modal
+            const dlModalEl = document.getElementById('downloadResolutionModal');
+            const dlModal = bootstrap.Modal.getInstance(dlModalEl);
+            if (dlModal) dlModal.hide();
+        });
+    });
 
     async function playStream(id, type, ext = 'mp4') {
         let fetchUrl = `api/proxy.php?server_id=${currentServerId}&action=get_stream_url&type=${type}&stream_id=${id}&container_extension=${ext}`;
@@ -301,14 +345,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const epTitle = ep.title || `Episode ${ep.episode_num}`;
                     const epId = ep.id;
                     const ext = ep.container_extension || 'mp4';
-                    const epDownloadUrl = `api/proxy.php?server_id=${currentServerId}&action=download_stream&type=series&stream_id=${epId}&container_extension=${ext}`;
 
                     let epDownloadBtn = '';
                     if (hasPaidSub) {
                         epDownloadBtn = `
-                            <a href="${epDownloadUrl}" class="btn btn-outline-success btn-sm" target="_blank" title="${t('download')}">
+                            <button class="btn btn-outline-success btn-sm trigger-download-btn" data-id="${epId}" data-type="series" data-title="${encodeURIComponent(epTitle)}" data-ext="${ext}" title="${t('download')}">
                                 <i class="bi bi-download me-1"></i>${t('download')}
-                            </a>`;
+                            </button>`;
                     } else {
                         epDownloadBtn = `
                             <button class="btn btn-outline-secondary btn-sm disabled" disabled title="Download requires paid subscription">
@@ -346,12 +389,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.appendChild(seasonCol);
             });
 
-            // Attach play event handlers for episodes
+            // Attach play & download event handlers for episodes
             document.querySelectorAll('.play-ep-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const epId = btn.getAttribute('data-id');
                     const ext = btn.getAttribute('data-ext');
                     playStream(epId, 'series', ext);
+                });
+            });
+
+            document.querySelectorAll('#series-seasons-container .trigger-download-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = btn.getAttribute('data-id');
+                    const type = btn.getAttribute('data-type');
+                    const title = decodeURIComponent(btn.getAttribute('data-title'));
+                    openDownloadModal(id, type, title);
                 });
             });
 
