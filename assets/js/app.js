@@ -80,6 +80,75 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Load M3U Playlists into Selector Dropdown
+    loadM3uPlaylists();
+
+    const addM3uForm = document.getElementById('addM3uForm');
+    if (addM3uForm) {
+        addM3uForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('m3uNameInput').value;
+            const url = document.getElementById('m3uUrlInput').value;
+            const alertContainer = document.getElementById('m3uAlertContainer');
+
+            try {
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('url', url);
+
+                const res = await fetch('api/proxy.php?action=add_m3u_playlist', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alertContainer.innerHTML = `<div class="alert alert-success">Playlist added successfully!</div>`;
+                    await loadM3uPlaylists();
+                    if (serverSelect) {
+                        serverSelect.value = `m3u_${data.m3u_id}`;
+                        currentServerId = `m3u_${data.m3u_id}`;
+                        loadTabContent();
+                    }
+                    setTimeout(() => {
+                        const modalEl = document.getElementById('addM3uModal');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+                    }, 1000);
+                } else {
+                    alertContainer.innerHTML = `<div class="alert alert-danger">${data.error || 'Failed to add M3U playlist.'}</div>`;
+                }
+            } catch (err) {
+                console.error(err);
+                alertContainer.innerHTML = `<div class="alert alert-danger">Error connecting to server.</div>`;
+            }
+        });
+    }
+
+    async function loadM3uPlaylists() {
+        const optgroup = document.getElementById('optgroup-m3u');
+        if (!optgroup) return;
+
+        try {
+            const res = await fetch('api/proxy.php?action=get_m3u_playlists');
+            const playlists = await res.json();
+
+            optgroup.innerHTML = '';
+            if (Array.isArray(playlists) && playlists.length > 0) {
+                playlists.forEach(pl => {
+                    const opt = document.createElement('option');
+                    opt.value = `m3u_${pl.id}`;
+                    opt.textContent = `${pl.name} (M3U)`;
+                    optgroup.appendChild(opt);
+                });
+            } else {
+                optgroup.innerHTML = `<option value="" disabled>No M3U Playlists Added</option>`;
+            }
+        } catch (err) {
+            console.error('Error fetching M3U playlists:', err);
+        }
+    }
+
     // Initial Load
     if (currentServerId) {
         loadTabContent();
@@ -88,6 +157,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadTabContent() {
+        if (!currentServerId) return;
+        showLoading();
+
+        if (currentServerId.startsWith('m3u_')) {
+            const m3uId = currentServerId.replace('m3u_', '');
+            try {
+                const res = await fetch(`api/proxy.php?action=get_m3u_content&m3u_id=${m3uId}`);
+                const data = await res.json();
+
+                categorySelect.innerHTML = `<option value="" data-i18n="all_categories">${t('all_categories')}</option>`;
+                if (data.categories && Array.isArray(data.categories)) {
+                    data.categories.forEach(cat => {
+                        const opt = document.createElement('option');
+                        opt.value = cat.category_id;
+                        opt.textContent = cat.category_name;
+                        categorySelect.appendChild(opt);
+                    });
+                }
+
+                loadedItems = data.channels || [];
+                filterAndRenderItems();
+            } catch (err) {
+                console.error('Error loading M3U content:', err);
+                contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-danger">${t('error_loading')}</div>`;
+            }
+            return;
+        }
+
+        const realServerId = currentServerId.replace('xtream_', '');
         if (!currentServerId) return;
         showLoading();
 
@@ -122,11 +220,17 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadTabStreams(categoryId = '') {
         showLoading();
 
+        if (currentServerId.startsWith('m3u_')) {
+            filterAndRenderItems();
+            return;
+        }
+
+        const realServerId = currentServerId.replace('xtream_', '');
         let streamAction = 'get_live_streams';
         if (activeTab === 'movies') streamAction = 'get_vod_streams';
         if (activeTab === 'series') streamAction = 'get_series';
 
-        let url = `api/proxy.php?server_id=${currentServerId}&action=${streamAction}`;
+        let url = `api/proxy.php?server_id=${realServerId}&action=${streamAction}`;
         if (categoryId) {
             url += `&category_id=${categoryId}`;
         }
@@ -150,9 +254,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function filterAndRenderItems() {
         const query = searchInput.value.toLowerCase().trim();
+        const selectedCategory = categorySelect ? categorySelect.value : '';
+
         const filtered = loadedItems.filter(item => {
             const name = (item.name || item.title || '').toLowerCase();
-            return name.includes(query);
+            const matchesQuery = name.includes(query);
+            const matchesCat = !selectedCategory || (item.category_id && String(item.category_id) === String(selectedCategory));
+            return matchesQuery && matchesCat;
         });
 
         renderGrid(filtered);
@@ -174,9 +282,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const icon = item.stream_icon || item.cover || 'https://via.placeholder.com/300x400?text=No+Cover';
             const id = item.stream_id || item.series_id;
             const containerExt = item.container_extension || 'mp4';
+            const directUrl = item.url || '';
 
             let actionButtons = '';
-            if (activeTab === 'live') {
+            if (currentServerId.startsWith('m3u_')) {
+                actionButtons = `
+                    <button class="btn btn-primary btn-sm w-100 mt-2 play-m3u-btn" data-url="${encodeURIComponent(directUrl)}">
+                        <i class="bi bi-play-fill me-1"></i>${t('play')}
+                    </button>`;
+            } else if (activeTab === 'live') {
                 actionButtons = `
                     <button class="btn btn-primary btn-sm w-100 mt-2 play-btn" data-id="${id}" data-type="live">
                         <i class="bi bi-play-fill me-1"></i>${t('play')}
@@ -225,6 +339,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Attach event listeners
+        document.querySelectorAll('.play-m3u-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const directUrl = decodeURIComponent(btn.getAttribute('data-url'));
+                playDirectUrl(directUrl);
+            });
+        });
+
         document.querySelectorAll('.play-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -291,21 +413,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    function playDirectUrl(streamUrl) {
+        if (!streamUrl) return;
+        const mimeType = (streamUrl.includes('.m3u8') || streamUrl.includes('.m3u')) ? 'application/x-mpegURL' : 'video/mp4';
+        playerInstance.src({ src: streamUrl, type: mimeType });
+        const playerModal = new bootstrap.Modal(document.getElementById('playerModal'));
+        playerModal.show();
+        playerInstance.play();
+    }
+
     async function playStream(id, type, ext = 'mp4') {
-        let fetchUrl = `api/proxy.php?server_id=${currentServerId}&action=get_stream_url&type=${type}&stream_id=${id}&container_extension=${ext}`;
+        const realServerId = currentServerId.replace('xtream_', '');
+        let fetchUrl = `api/proxy.php?server_id=${realServerId}&action=get_stream_url&type=${type}&stream_id=${id}&container_extension=${ext}`;
         try {
             const res = await fetch(fetchUrl);
             const data = await res.json();
 
             if (data.stream_url) {
-                const streamUrl = data.stream_url;
-                const mimeType = (type === 'live' || streamUrl.includes('.m3u8')) ? 'application/x-mpegURL' : 'video/mp4';
-
-                playerInstance.src({ src: streamUrl, type: mimeType });
-                
-                const playerModal = new bootstrap.Modal(document.getElementById('playerModal'));
-                playerModal.show();
-                playerInstance.play();
+                playDirectUrl(data.stream_url);
             }
         } catch (err) {
             console.error('Error fetching stream URL:', err);

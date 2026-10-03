@@ -63,21 +63,25 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
             </a>
         </div>
 
-        <!-- Server Selector Dropdown & Add Server -->
-        <div class="d-flex align-items-center me-auto my-2 my-lg-0" style="max-width: 400px; width: 100%;">
+        <!-- Server & M3U Playlist Selector Dropdown & Add Actions -->
+        <div class="d-flex align-items-center me-auto my-2 my-lg-0" style="max-width: 500px; width: 100%;">
             <select id="server-select" class="form-select form-select-sm bg-dark text-white border-secondary me-2">
-                <?php if (empty($accessibleServers)): ?>
-                    <option value="" disabled selected>No Xtream Servers Available</option>
-                <?php else: ?>
+                <optgroup label="Xtream Codes Servers" id="optgroup-xtream">
                     <?php foreach ($accessibleServers as $idx => $srv): ?>
-                        <option value="<?= $srv['id'] ?>" <?= $idx === 0 ? 'selected' : '' ?>>
+                        <option value="xtream_<?= $srv['id'] ?>" <?= $idx === 0 ? 'selected' : '' ?>>
                             <?= htmlspecialchars($srv['name']) ?> <?= $srv['user_id'] ? '(Personal)' : '(Global)' ?>
                         </option>
                     <?php endforeach; ?>
-                <?php endif; ?>
+                </optgroup>
+                <optgroup label="M3U / M3U8 Playlists" id="optgroup-m3u">
+                    <!-- Populated dynamically via JS -->
+                </optgroup>
             </select>
-            <button class="btn btn-sm btn-outline-info text-nowrap" data-bs-toggle="modal" data-bs-target="#addPersonalServerModal">
-                <i class="bi bi-plus-circle me-1"></i><span data-i18n="add_server">Add Server</span>
+            <button class="btn btn-sm btn-outline-info text-nowrap me-1" data-bs-toggle="modal" data-bs-target="#addPersonalServerModal" title="Add Xtream Server">
+                <i class="bi bi-hdd-network me-1"></i><span data-i18n="add_server">Add Xtream</span>
+            </button>
+            <button class="btn btn-sm btn-outline-warning text-nowrap" data-bs-toggle="modal" data-bs-target="#addM3uModal" title="Add M3U / M3U8 Playlist">
+                <i class="bi bi-link-45deg me-1"></i><span>Add M3U</span>
             </button>
         </div>
 
@@ -250,6 +254,36 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
                     </video>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add M3U / M3U8 Playlist Modal -->
+<div class="modal fade" id="addM3uModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-panel text-white">
+            <form id="addM3uForm">
+                <div class="modal-header border-bottom border-secondary">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-link-45deg me-2 text-warning"></i>Add M3U / M3U8 Playlist</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="m3uAlertContainer"></div>
+                    <div class="mb-3">
+                        <label class="form-label">Playlist Name</label>
+                        <input type="text" id="m3uNameInput" class="form-control glass-input" placeholder="e.g. My Sports M3U Playlist" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">M3U or M3U8 Playlist URL</label>
+                        <input type="url" id="m3uUrlInput" class="form-control glass-input" placeholder="http://example.com/playlist.m3u8" required>
+                        <div class="form-text text-muted">Direct HTTP/HTTPS link to your .m3u or .m3u8 playlist file.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold">Save Playlist</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

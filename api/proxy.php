@@ -3,6 +3,7 @@
 
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/xtream.php';
+require_once __DIR__ . '/../includes/m3u_parser.php';
 
 if (!isLoggedIn()) {
     header('Content-Type: application/json');
@@ -11,11 +12,62 @@ if (!isLoggedIn()) {
 }
 
 $serverId = $_GET['server_id'] ?? $_POST['server_id'] ?? null;
+$m3uId    = $_GET['m3u_id']    ?? $_POST['m3u_id']    ?? null;
 $action   = $_GET['action']    ?? $_POST['action']    ?? '';
 
-if (!$serverId) {
+// Handle M3U playlist endpoints
+if ($action === 'add_m3u_playlist') {
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Server ID is required.']);
+    $name = trim($_POST['name'] ?? '');
+    $url  = trim($_POST['url'] ?? '');
+
+    if (empty($name) || empty($url)) {
+        echo json_encode(['error' => 'Playlist name and M3U/M3U8 URL are required.']);
+        exit;
+    }
+
+    $pdo = getDBConnection();
+    $stmt = $pdo->prepare("INSERT INTO m3u_playlists (user_id, name, url) VALUES (?, ?, ?)");
+    $stmt->execute([$_SESSION['user_id'], $name, $url]);
+    $newId = $pdo->lastInsertId();
+
+    echo json_encode(['success' => true, 'm3u_id' => $newId, 'name' => $name]);
+    exit;
+}
+
+if ($action === 'get_m3u_playlists') {
+    header('Content-Type: application/json');
+    $pdo = getDBConnection();
+    $stmt = $pdo->prepare("SELECT id, name, url FROM m3u_playlists WHERE user_id = ? OR user_id IS NULL ORDER BY name ASC");
+    $stmt->execute([$_SESSION['user_id']]);
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    exit;
+}
+
+if ($action === 'get_m3u_content') {
+    header('Content-Type: application/json');
+    if (!$m3uId) {
+        echo json_encode(['error' => 'M3U Playlist ID is required.']);
+        exit;
+    }
+    $pdo = getDBConnection();
+    $stmt = $pdo->prepare("SELECT url FROM m3u_playlists WHERE id = ? AND (user_id = ? OR user_id IS NULL)");
+    $stmt->execute([$m3uId, $_SESSION['user_id']]);
+    $playlist = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$playlist) {
+        echo json_encode(['error' => 'M3U Playlist not found.']);
+        exit;
+    }
+
+    $parsed = M3UParser::parseUrl($playlist['url']);
+    echo json_encode($parsed);
+    exit;
+}
+
+if (!$serverId && !$m3uId) {
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Server ID or M3U ID is required.']);
     exit;
 }
 
