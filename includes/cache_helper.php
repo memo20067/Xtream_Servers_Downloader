@@ -2,12 +2,26 @@
 // includes/cache_helper.php - Image & Metadata Local Caching Helper
 
 class CacheHelper {
+    public static function ensureServerFolders($serverFolder) {
+        if (empty($serverFolder)) return;
+        $cleanFolder = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $serverFolder);
+        $base = __DIR__ . '/../cache/images/' . $cleanFolder . '/';
+
+        foreach (['live', 'movies', 'series'] as $sub) {
+            $path = $base . $sub . '/';
+            if (!is_dir($path)) {
+                @mkdir($path, 0777, true);
+            }
+        }
+    }
+
     public static function getCacheDir($serverFolder = '', $mediaType = '') {
         $base = __DIR__ . '/../cache/images/';
         if (!empty($serverFolder)) {
             // Sanitize folder name
             $cleanFolder = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $serverFolder);
             $base .= $cleanFolder . '/';
+            self::ensureServerFolders($cleanFolder);
         }
         if (!empty($mediaType) && in_array($mediaType, ['live', 'movies', 'series'])) {
             $base .= $mediaType . '/';

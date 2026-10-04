@@ -12,6 +12,7 @@ if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
     exit;
 }
 
+CacheHelper::ensureServerFolders($serverFolder);
 $cachedUrl = CacheHelper::cacheImage($url, $serverFolder, $mediaType);
 
 if ($cachedUrl !== $url && file_exists(__DIR__ . '/../' . $cachedUrl)) {
