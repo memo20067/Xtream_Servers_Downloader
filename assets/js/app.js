@@ -38,11 +38,31 @@ document.addEventListener('DOMContentLoaded', () => {
     if (serverSelect) {
         serverSelect.addEventListener('change', (e) => {
             currentServerId = e.target.value;
-            seriesDetailView.classList.add('d-none');
+            updateTabVisibility();
+            if (seriesDetailView) seriesDetailView.classList.add('d-none');
             contentGrid.classList.remove('d-none');
             loadTabContent();
         });
     }
+
+    function updateTabVisibility() {
+        const isM3u = currentServerId && currentServerId.startsWith('m3u_');
+        document.querySelectorAll('.tab-xtream-only').forEach(el => {
+            if (isM3u) {
+                el.classList.add('d-none');
+            } else {
+                el.classList.remove('d-none');
+            }
+        });
+        if (isM3u && (activeTab === 'movies' || activeTab === 'series')) {
+            activeTab = 'live';
+            document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
+            const liveTab = document.querySelector('.tab-link[data-tab="live"]');
+            if (liveTab) liveTab.classList.add('active');
+        }
+    }
+
+    updateTabVisibility();
 
     // Tab Navigation
     document.querySelectorAll('.tab-link').forEach(link => {
@@ -268,6 +288,29 @@ document.addEventListener('DOMContentLoaded', () => {
         renderGrid(filtered);
     }
 
+    // Grid Zooming Logic
+    const btnZoomOut = document.getElementById('btn-grid-zoom-out');
+    const btnZoomReset = document.getElementById('btn-grid-zoom-reset');
+    const btnZoomIn = document.getElementById('btn-grid-zoom-in');
+    let currentZoomClass = 'grid-col-zoom-md';
+
+    if (btnZoomOut) {
+        btnZoomOut.addEventListener('click', () => setGridZoom('grid-col-zoom-sm'));
+    }
+    if (btnZoomReset) {
+        btnZoomReset.addEventListener('click', () => setGridZoom('grid-col-zoom-md'));
+    }
+    if (btnZoomIn) {
+        btnZoomIn.addEventListener('click', () => setGridZoom('grid-col-zoom-lg'));
+    }
+
+    function setGridZoom(zoomClass) {
+        currentZoomClass = zoomClass;
+        document.querySelectorAll('#content-grid > div').forEach(col => {
+            col.className = `col-6 col-sm-4 ${zoomClass}`;
+        });
+    }
+
     function renderGrid(items) {
         contentGrid.innerHTML = '';
 
@@ -278,7 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         items.forEach(item => {
             const col = document.createElement('div');
-            col.className = 'col-6 col-sm-4 col-md-3 col-lg-2';
+            col.className = `col-6 col-sm-4 ${currentZoomClass}`;
 
             const title = item.name || item.title || 'Untitled';
             const icon = item.stream_icon || item.cover || 'https://via.placeholder.com/300x400?text=No+Cover';
@@ -340,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
             contentGrid.appendChild(col);
         });
 
-        // Attach event listeners
+        // Attach event listeners to open dedicated player.php
         document.querySelectorAll('.play-m3u-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -355,7 +398,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const id = btn.getAttribute('data-id');
                 const type = btn.getAttribute('data-type');
                 const ext = btn.getAttribute('data-ext') || 'mp4';
-                playStream(id, type, ext);
+                const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
+
+                // Find title and icon
+                const card = btn.closest('.media-card');
+                const title = card ? card.querySelector('.media-title').getAttribute('title') : 'Video';
+                const icon = card ? card.querySelector('.media-poster').getAttribute('src') : '';
+
+                window.location.href = `player.php?server_id=${cleanServerId}&type=${type}&stream_id=${id}&title=${encodeURIComponent(title)}&icon=${encodeURIComponent(icon)}&ext=${ext}`;
             });
         });
 
@@ -364,7 +414,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 const id = btn.getAttribute('data-id');
                 const title = decodeURIComponent(btn.getAttribute('data-title'));
-                openSeriesDetails(id, title);
+                const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
+
+                const card = btn.closest('.media-card');
+                const icon = card ? card.querySelector('.media-poster').getAttribute('src') : '';
+
+                window.location.href = `player.php?server_id=${cleanServerId}&type=series&series_id=${id}&title=${encodeURIComponent(title)}&icon=${encodeURIComponent(icon)}`;
             });
         });
 

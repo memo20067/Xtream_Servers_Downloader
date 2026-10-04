@@ -128,45 +128,54 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
     window.HAS_PAID_SUBSCRIPTION = <?= hasPaidSubscription() ? 'true' : 'false' ?>;
 </script>
 
-<!-- Main App Layout Container -->
-<div id="app-container">
-    <!-- Collapsible Sidebar -->
-    <aside id="sidebar" class="py-3">
-        <ul class="nav nav-pills flex-column mb-auto">
+<!-- Horizontal Category & Stream Type Bar -->
+<div class="container-fluid px-4 pt-3">
+    <div class="glass-panel p-3 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <!-- Horizontal Tabs -->
+        <ul class="nav nav-pills gap-2" id="horizontal-nav-tabs">
             <li class="nav-item">
-                <a href="#" class="nav-link active tab-link" data-tab="live">
-                    <i class="bi bi-broadcast me-2"></i>
-                    <span class="nav-text" data-i18n="live_tv">Live TV</span>
+                <a href="#" class="nav-link active tab-link fw-bold px-3 py-2" data-tab="live">
+                    <i class="bi bi-broadcast me-2"></i><span data-i18n="live_tv">Live TV</span>
                 </a>
             </li>
-            <li class="nav-item">
-                <a href="#" class="nav-link tab-link" data-tab="movies">
-                    <i class="bi bi-film me-2"></i>
-                    <span class="nav-text" data-i18n="movies">Movies</span>
+            <li class="nav-item tab-xtream-only">
+                <a href="#" class="nav-link tab-link fw-bold px-3 py-2" data-tab="movies">
+                    <i class="bi bi-film me-2"></i><span data-i18n="movies">Movies</span>
                 </a>
             </li>
-            <li class="nav-item">
-                <a href="#" class="nav-link tab-link" data-tab="series">
-                    <i class="bi bi-tv me-2"></i>
-                    <span class="nav-text" data-i18n="series">Series</span>
+            <li class="nav-item tab-xtream-only">
+                <a href="#" class="nav-link tab-link fw-bold px-3 py-2" data-tab="series">
+                    <i class="bi bi-tv me-2"></i><span data-i18n="series">Series</span>
                 </a>
             </li>
         </ul>
-    </aside>
 
-    <!-- Main Content Area -->
-    <main id="main-content">
+        <!-- Grid Zoom & Display Density Controls -->
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-secondary small fw-bold"><i class="bi bi-aspect-ratio me-1"></i>Card Size:</span>
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-outline-info" id="btn-grid-zoom-out" title="Zoom Out / Small Cards"><i class="bi bi-zoom-out"></i></button>
+                <button type="button" class="btn btn-outline-info" id="btn-grid-zoom-reset" title="Default Size"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+                <button type="button" class="btn btn-outline-info" id="btn-grid-zoom-in" title="Zoom In / Large Cards"><i class="bi bi-zoom-in"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main App Layout Container with Symmetric Horizontal Padding -->
+<div class="container-fluid px-4 py-2">
+    <main id="main-content" class="w-100 p-0">
         <!-- Filter & Search Bar -->
         <div class="row g-3 mb-4 align-items-center">
             <div class="col-md-4">
-                <select id="category-select" class="form-select bg-secondary text-white border-0">
+                <select id="category-select" class="form-select glass-input border-0">
                     <option value="" data-i18n="all_categories">All Categories</option>
                 </select>
             </div>
             <div class="col-md-8">
                 <div class="input-group">
-                    <span class="input-group-text bg-secondary text-white border-0"><i class="bi bi-search"></i></span>
-                    <input type="text" id="search-input" class="form-control bg-secondary text-white border-0" placeholder="Search channels or titles..." data-i18n="search_placeholder">
+                    <span class="input-group-text glass-input border-0"><i class="bi bi-search"></i></span>
+                    <input type="text" id="search-input" class="form-control glass-input border-0" placeholder="Search channels or titles..." data-i18n="search_placeholder">
                 </div>
             </div>
         </div>
