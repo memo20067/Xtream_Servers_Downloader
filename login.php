@@ -37,14 +37,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php if ($error): ?>
                 <div class="alert alert-danger" role="alert"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
+            <?php if (isset($_GET['reset']) && $_GET['reset'] === 'success'): ?>
+                <div class="alert alert-success" role="alert">تم تغيير كلمة المرور بنجاح! يمكنك الآن تسجيل الدخول.</div>
+            <?php endif; ?>
             <form method="POST" action="login.php">
                 <div class="mb-3">
                     <label for="username" class="form-label" id="lbl-username">Username or Email</label>
                     <input type="text" class="form-control" id="username" name="username" required>
                 </div>
                 <div class="mb-3">
-                    <label for="password" class="form-label" id="lbl-password">Password</label>
-                    <input type="password" class="form-control" id="password" name="password" required>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <label for="password" class="form-label mb-0" id="lbl-password">Password</label>
+                        <a href="forgot_password.php" class="text-info small text-decoration-none">نسيت كلمة السر؟ (Forgot Password)</a>
+                    </div>
+                    <input type="password" class="form-control mt-1" id="password" name="password" required>
                 </div>
                 <button type="submit" class="btn btn-primary w-100" id="btn-login">Sign In</button>
             </form>
