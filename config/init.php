@@ -93,6 +93,16 @@ function initializeDatabase() {
                 expires_at DATETIME NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS error_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                level VARCHAR(20) NOT NULL DEFAULT 'ERROR',
+                action VARCHAR(100) DEFAULT NULL,
+                server_id VARCHAR(100) DEFAULT NULL,
+                message TEXT NOT NULL,
+                details TEXT DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         ");
     } else {
         $db->exec("
@@ -174,6 +184,16 @@ function initializeDatabase() {
                 email VARCHAR(100) NOT NULL,
                 code VARCHAR(10) NOT NULL,
                 expires_at DATETIME NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS error_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                level VARCHAR(20) NOT NULL DEFAULT 'ERROR',
+                action VARCHAR(100) DEFAULT NULL,
+                server_id VARCHAR(100) DEFAULT NULL,
+                message TEXT NOT NULL,
+                details LONGTEXT DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
         ");

@@ -117,17 +117,10 @@ function getAccessibleServers() {
 
     $db = getDBConnection();
     $userId = $_SESSION['user_id'];
-    $isPaid = hasPaidSubscription();
 
-    if ($isPaid) {
-        // Paid users can access global servers (user_id IS NULL) AND their personal servers
-        $stmt = $db->prepare("SELECT * FROM servers WHERE user_id IS NULL OR user_id = ? ORDER BY id ASC");
-        $stmt->execute([$userId]);
-    } else {
-        // Free users CAN ONLY access their own personal servers
-        $stmt = $db->prepare("SELECT * FROM servers WHERE user_id = ? ORDER BY id ASC");
-        $stmt->execute([$userId]);
-    }
+    // All logged in users can access global servers (user_id IS NULL) and their personal servers (user_id = $userId)
+    $stmt = $db->prepare("SELECT * FROM servers WHERE user_id IS NULL OR user_id = ? ORDER BY id ASC");
+    $stmt->execute([$userId]);
 
     return $stmt->fetchAll();
 }

@@ -45,6 +45,7 @@ class XtreamAPI {
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
         curl_close($ch);
 
         if ($httpCode === 200 && $response !== false) {
@@ -53,6 +54,13 @@ class XtreamAPI {
                 return $data;
             }
         }
+
+        require_once __DIR__ . '/logger.php';
+        Logger::log("Xtream API player_api.php call failed or returned invalid JSON (HTTP {$httpCode}). Falling back to M3U URL.", "WARNING", $action, $this->host, [
+            'url' => $url,
+            'http_code' => $httpCode,
+            'curl_error' => $curlErr
+        ]);
 
         // Fallback: Parse via M3U download URL
         require_once __DIR__ . '/m3u_parser.php';

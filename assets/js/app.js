@@ -164,6 +164,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     opt.textContent = `${pl.name} (M3U)`;
                     optgroup.appendChild(opt);
                 });
+
+                if ((!currentServerId || currentServerId === '') && serverSelect) {
+                    serverSelect.value = `m3u_${playlists[0].id}`;
+                    currentServerId = `m3u_${playlists[0].id}`;
+                    updateTabVisibility();
+                    loadTabContent();
+                }
             } else {
                 optgroup.innerHTML = `<option value="" disabled>No M3U Playlists Added</option>`;
             }

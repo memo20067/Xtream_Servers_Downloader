@@ -49,6 +49,9 @@ $currentUser = getCurrentUser();
             <li class="nav-item">
                 <a class="nav-link" href="settings.php"><i class="bi bi-gear me-1"></i><?= admin_t('nav_settings') ?></a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="logs.php"><i class="bi bi-journal-code me-1"></i><?= admin_t('nav_logs') ?></a>
+            </li>
         </ul>
         <div class="d-flex align-items-center gap-2">
             <!-- Language Switcher -->

@@ -14,9 +14,16 @@ class M3UParser {
 
         $content = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
         curl_close($ch);
 
         if ($httpCode !== 200 || empty($content)) {
+            require_once __DIR__ . '/logger.php';
+            Logger::log("Failed to fetch M3U playlist URL (HTTP {$httpCode}).", "ERROR", "m3u_fetch", $url, [
+                'url' => $url,
+                'http_code' => $httpCode,
+                'curl_error' => $curlErr
+            ]);
             return ['categories' => [], 'channels' => []];
         }
 

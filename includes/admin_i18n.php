@@ -23,6 +23,7 @@ function admin_t($key) {
                 'nav_plans' => 'باقات الاشتراك',
                 'nav_news' => 'شريط الأخبار',
                 'nav_settings' => 'إعدادات الموقع',
+                'nav_logs' => 'سجل الأخطاء',
                 'nav_player' => 'لوحة المشغل الرئيسي',
                 'nav_logout' => 'تسجيل الخروج',
 
@@ -110,6 +111,15 @@ function admin_t($key) {
                 'msg_news_posted' => 'تم نشر الإعلان بنجاح!',
                 'msg_news_deleted' => 'تم حذف الإعلان بنجاح!',
 
+                // Logs Page
+                'logs_title' => 'سجل أخطاء النظام والاتصال',
+                'btn_clear_logs' => 'مسح جميع السجلات',
+                'tbl_timestamp' => 'الوقت والتاريخ',
+                'tbl_level' => 'المستوى',
+                'tbl_action' => 'الإجراء',
+                'tbl_details' => 'تفاصيل الخطأ',
+                'msg_logs_cleared' => 'تم مسح سجل الأخطاء بنجاح!',
+
                 // Settings Page
                 'settings_title' => 'إعدادات الموقع والهوية',
                 'lbl_app_name' => 'اسم التطبيق',
@@ -130,6 +140,7 @@ function admin_t($key) {
                 'nav_plans' => 'Subscription Plans',
                 'nav_news' => 'News Ticker',
                 'nav_settings' => 'Site Settings',
+                'nav_logs' => 'Error Logs',
                 'nav_player' => 'Main Player Dashboard',
                 'nav_logout' => 'Logout',
 
@@ -216,6 +227,15 @@ function admin_t($key) {
                 'sev_alert' => 'Alert (Red)',
                 'msg_news_posted' => 'Announcement posted successfully!',
                 'msg_news_deleted' => 'Announcement deleted successfully!',
+
+                // Logs Page
+                'logs_title' => 'System & Connection Error Logs',
+                'btn_clear_logs' => 'Clear All Logs',
+                'tbl_timestamp' => 'Timestamp',
+                'tbl_level' => 'Level',
+                'tbl_action' => 'Action',
+                'tbl_details' => 'Error Details',
+                'msg_logs_cleared' => 'Error logs cleared successfully!',
 
                 // Settings Page
                 'settings_title' => 'Site Configuration & Branding',
