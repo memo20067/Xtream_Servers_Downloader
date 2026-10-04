@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Category Filter Change
     if (categorySelect) {
         categorySelect.addEventListener('change', () => {
-            loadTabStreams(categorySelect.value);
+            filterAndRenderItems();
         });
     }
 
@@ -256,9 +256,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeTab === 'series') streamAction = 'get_series';
 
         let url = `api/proxy.php?server_id=${realServerId}&action=${streamAction}`;
-        if (categoryId) {
-            url += `&category_id=${categoryId}`;
-        }
 
         try {
             const res = await fetch(url);
