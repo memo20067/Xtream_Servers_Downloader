@@ -114,6 +114,14 @@ class XtreamAPI {
         return $this->request('get_series_info', ['series_id' => $seriesId]);
     }
 
+    public function getShortEpg($streamId, $limit = 4) {
+        return $this->request('get_short_epg', ['stream_id' => $streamId, 'limit' => $limit]);
+    }
+
+    public function getVodInfo($streamId) {
+        return $this->request('get_vod_info', ['vod_id' => $streamId]);
+    }
+
     public function getLiveStreamUrl($streamId, $extension = 'm3u8') {
         // e.g. http://host:port/live/username/password/stream_id.m3u8
         return $this->host . '/live/' . rawurlencode($this->username) . '/' . rawurlencode($this->password) . '/' . rawurlencode($streamId) . '.' . $extension;

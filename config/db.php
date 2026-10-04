@@ -30,11 +30,6 @@ function getDBConnection() {
 
     try {
         if ($db_type === 'mysql') {
-            // Ensure target database exists
-            $dsnHost = "mysql:host={$db_host};port={$db_port};charset=utf8mb4";
-            $pdoHost = new PDO($dsnHost, $db_user, $db_pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-            $pdoHost->exec("CREATE DATABASE IF NOT EXISTS `" . str_replace("`", "``", $db_name) . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
-
             $dsn = "mysql:host={$db_host};port={$db_port};dbname={$db_name};charset=utf8mb4";
             $pdo = new PDO($dsn, $db_user, $db_pass, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,

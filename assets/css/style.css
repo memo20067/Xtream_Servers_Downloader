@@ -34,6 +34,34 @@ body {
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
+/* Dynamic Grid Card Sizes */
+.grid-col-zoom-sm {
+    flex: 0 0 auto;
+    width: 12.5%; /* 8 per row on desktop */
+}
+
+.grid-col-zoom-md {
+    flex: 0 0 auto;
+    width: 16.666667%; /* Default 6 per row */
+}
+
+.grid-col-zoom-lg {
+    flex: 0 0 auto;
+    width: 25%; /* 4 per row */
+}
+
+@media (max-width: 992px) {
+    .grid-col-zoom-sm { width: 25%; }
+    .grid-col-zoom-md { width: 33.333333%; }
+    .grid-col-zoom-lg { width: 50%; }
+}
+
+@media (max-width: 576px) {
+    .grid-col-zoom-sm { width: 50%; }
+    .grid-col-zoom-md { width: 50%; }
+    .grid-col-zoom-lg { width: 100%; }
+}
+
 .glass-card {
     background: var(--bg-glass-card);
     backdrop-filter: blur(12px);

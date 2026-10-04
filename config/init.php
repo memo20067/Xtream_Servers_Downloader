@@ -51,7 +51,7 @@ function initializeDatabase() {
                 password VARCHAR(100) NOT NULL,
                 m3u_url TEXT DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES servers(id) ON DELETE CASCADE
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS m3u_playlists (
