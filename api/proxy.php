@@ -71,15 +71,6 @@ if ($action === 'get_m3u_content') {
 
     $parsed = M3UParser::parseUrl($playlist['url']);
 
-    // Cache icons
-    if (isset($parsed['channels']) && is_array($parsed['channels'])) {
-        foreach ($parsed['channels'] as &$ch) {
-            if (!empty($ch['stream_icon'])) {
-                $ch['stream_icon'] = CacheHelper::cacheImage($ch['stream_icon']);
-            }
-        }
-    }
-
     CacheHelper::setCachedPlaylist('m3u_' . $m3uId, 'm3u_content', $parsed);
     echo json_encode($parsed);
     exit;
@@ -139,11 +130,6 @@ switch ($action) {
         } else {
             $res = $api->getLiveStreams();
             if (is_array($res) && !empty($res)) {
-                foreach ($res as &$item) {
-                    if (!empty($item['stream_icon'])) {
-                        $item['stream_icon'] = CacheHelper::cacheImage($item['stream_icon']);
-                    }
-                }
                 CacheHelper::setCachedPlaylist($serverId, 'live_streams', $res);
                 if ($categoryId !== null && $categoryId !== '') {
                     $res = array_values(array_filter($res, function($item) use ($categoryId) {
@@ -183,11 +169,6 @@ switch ($action) {
         } else {
             $res = $api->getVodStreams();
             if (is_array($res) && !empty($res)) {
-                foreach ($res as &$item) {
-                    if (!empty($item['stream_icon'])) {
-                        $item['stream_icon'] = CacheHelper::cacheImage($item['stream_icon']);
-                    }
-                }
                 CacheHelper::setCachedPlaylist($serverId, 'vod_streams', $res);
                 if ($categoryId !== null && $categoryId !== '') {
                     $res = array_values(array_filter($res, function($item) use ($categoryId) {
@@ -227,11 +208,6 @@ switch ($action) {
         } else {
             $res = $api->getSeries();
             if (is_array($res) && !empty($res)) {
-                foreach ($res as &$item) {
-                    if (!empty($item['cover'])) {
-                        $item['cover'] = CacheHelper::cacheImage($item['cover']);
-                    }
-                }
                 CacheHelper::setCachedPlaylist($serverId, 'series', $res);
                 if ($categoryId !== null && $categoryId !== '') {
                     $res = array_values(array_filter($res, function($item) use ($categoryId) {
