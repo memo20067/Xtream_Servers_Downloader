@@ -231,7 +231,7 @@ switch ($action) {
     case 'get_epg':
         header('Content-Type: application/json');
         $type = $_GET['type'] ?? 'live';
-        $targetId = $streamId || $seriesId;
+        $targetId = $seriesId ?: $streamId;
 
         if ($type === 'live' && $streamId) {
             $epgData = $api->getShortEpg($streamId);
@@ -246,7 +246,7 @@ switch ($action) {
             }
             echo json_encode($vodInfo);
         } elseif ($type === 'series' && ($seriesId || $streamId)) {
-            $targetSeriesId = $seriesId || $streamId;
+            $targetSeriesId = $seriesId ?: $streamId;
             $seriesInfo = $api->getSeriesInfo($targetSeriesId);
             if (!empty($seriesInfo)) {
                 CacheHelper::updateItemEpg($serverId, 'series', $targetSeriesId, $seriesInfo);
