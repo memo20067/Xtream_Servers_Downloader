@@ -69,7 +69,7 @@ $isRtl = ($lang === 'ar');
             </div>
 
             <!-- Title & Channel/Movie Metadata Box below Player -->
-            <div class="glass-panel p-4 d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div class="glass-panel p-4 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
                 <div class="d-flex align-items-center gap-3">
                     <?php if (!empty($icon)): ?>
                         <img src="<?= htmlspecialchars($icon) ?>" alt="Logo" class="rounded img-thumbnail bg-dark" style="width: 70px; height: 70px; object-fit: cover;">
@@ -98,6 +98,19 @@ $isRtl = ($lang === 'ar');
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
+            </div>
+
+            <!-- EPG Program Guide / Overview Section directly below Metadata Box -->
+            <div class="glass-panel p-4">
+                <h5 class="fw-bold mb-3 text-info border-bottom border-secondary pb-2">
+                    <i class="bi bi-calendar2-week me-2"></i><?= $isRtl ? 'جدول البرامج والدليل الإلكتروني (EPG)' : 'Electronic Program Guide (EPG)' ?>
+                </h5>
+                <div id="epg-container">
+                    <div class="text-center py-3 text-white-50">
+                        <div class="spinner-border spinner-border-sm text-info me-2" role="status"></div>
+                        <small><?= $isRtl ? 'جاري جلب الدليل الإلكتروني للبرامج...' : 'Loading EPG guide...' ?></small>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -155,6 +168,58 @@ $isRtl = ($lang === 'ar');
 
     if (streamId && streamType !== 'series') {
         loadStream(streamId, streamType, ext);
+    }
+
+    // Load EPG Program Guide or Metadata Info
+    async function loadEPG(id, type) {
+        const container = document.getElementById('epg-container');
+        if (!container) return;
+
+        try {
+            const res = await fetch(`api/proxy.php?server_id=${serverId}&action=get_epg&type=${type}&stream_id=${id}&series_id=${seriesId || id}`);
+            const data = await res.json();
+
+            if (data.epg_listings && Array.isArray(data.epg_listings) && data.epg_listings.length > 0) {
+                let epgHtml = '<div class="list-group list-group-flush bg-transparent">';
+                data.epg_listings.forEach(item => {
+                    const title = item.title ? atob(item.title) : 'Program';
+                    const desc = item.description ? atob(item.description) : '';
+                    const start = item.start || '';
+                    const end = item.end || '';
+                    epgHtml += `
+                        <div class="list-group-item bg-transparent text-white border-secondary px-0 py-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="fw-bold text-info mb-1"><i class="bi bi-clock-history me-1"></i>${title}</h6>
+                                <small class="badge bg-secondary">${start} - ${end}</small>
+                            </div>
+                            ${desc ? `<p class="small text-white-50 mb-0">${desc}</p>` : ''}
+                        </div>
+                    `;
+                });
+                epgHtml += '</div>';
+                container.innerHTML = epgHtml;
+            } else if (data.info && (data.info.plot || data.info.description || data.info.genre)) {
+                const info = data.info;
+                container.innerHTML = `
+                    <div class="text-white">
+                        ${info.genre ? `<div class="badge bg-primary me-2 mb-2">${info.genre}</div>` : ''}
+                        ${info.releasedate ? `<div class="badge bg-secondary me-2 mb-2">${info.releasedate}</div>` : ''}
+                        ${info.director ? `<p class="small text-info mb-1"><i class="bi bi-camera-reels me-1"></i>Director: ${info.director}</p>` : ''}
+                        ${info.cast ? `<p class="small text-white-50 mb-2"><i class="bi bi-people me-1"></i>Cast: ${info.cast}</p>` : ''}
+                        <p class="mt-2 text-light mb-0">${info.plot || info.description || 'No detailed plot summary available.'}</p>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `<p class="text-white-50 small mb-0"><i class="bi bi-info-circle me-1"></i>No EPG guide or plot details available for this item.</p>`;
+            }
+        } catch (err) {
+            console.error('Error fetching EPG:', err);
+            container.innerHTML = `<p class="text-white-50 small mb-0"><i class="bi bi-exclamation-circle me-1"></i>EPG guide unavailable.</p>`;
+        }
+    }
+
+    if (streamId || seriesId) {
+        loadEPG(streamId || seriesId, streamType);
     }
 
     // Load Series Episodes List if series

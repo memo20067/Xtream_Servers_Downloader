@@ -252,6 +252,24 @@ switch ($action) {
         echo json_encode($api->getSeriesInfo($seriesId));
         break;
 
+    case 'get_epg':
+        header('Content-Type: application/json');
+        $type = $_GET['type'] ?? 'live';
+        if ($type === 'live' && $streamId) {
+            $epgData = $api->getShortEpg($streamId);
+            echo json_encode($epgData);
+        } elseif (($type === 'movie' || $type === 'vod') && $streamId) {
+            $vodInfo = $api->getVodInfo($streamId);
+            echo json_encode($vodInfo);
+        } elseif ($type === 'series' && ($seriesId || $streamId)) {
+            $targetSeriesId = $seriesId || $streamId;
+            $seriesInfo = $api->getSeriesInfo($targetSeriesId);
+            echo json_encode($seriesInfo);
+        } else {
+            echo json_encode(['epg_listings' => []]);
+        }
+        break;
+
     case 'get_stream_url':
         header('Content-Type: application/json');
         $type = $_GET['type'] ?? 'live';
