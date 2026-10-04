@@ -101,20 +101,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($adminUser) || empty($adminEmail) || empty($adminPass)) {
             $error = "All mandatory fields (Username, Email, Password) must be filled.";
         } else {
-            // Defensively ensure database tables exist before admin creation
-            require_once __DIR__ . '/../config/init.php';
-            initializeDatabase();
+            try {
+                // Defensively ensure database tables exist before admin creation
+                require_once __DIR__ . '/../config/init.php';
+                initializeDatabase();
 
-            $db = getDBConnection();
-            $stmt = $db->prepare("DELETE FROM users WHERE role = 'admin'");
-            $stmt->execute();
+                $db = getDBConnection();
+                $stmt = $db->prepare("DELETE FROM users WHERE role = 'admin'");
+                $stmt->execute();
 
-            $hashedPass = password_hash($adminPass, PASSWORD_BCRYPT);
-            $stmtIns = $db->prepare("INSERT INTO users (username, email, phone, password, role, has_paid_subscription) VALUES (?, ?, ?, ?, 'admin', 1)");
-            $stmtIns->execute([$adminUser, $adminEmail, $adminPhone, $hashedPass]);
+                $hashedPass = password_hash($adminPass, PASSWORD_BCRYPT);
+                $stmtIns = $db->prepare("INSERT INTO users (username, email, phone, password, role, has_paid_subscription) VALUES (?, ?, ?, ?, 'admin', 1)");
+                $stmtIns->execute([$adminUser, $adminEmail, $adminPhone, $hashedPass]);
 
-            header("Location: index.php?step=5");
-            exit;
+                header("Location: index.php?step=5");
+                exit;
+            } catch (Exception $e) {
+                $error = "Failed to create super-admin account: " . $e->getMessage();
+            }
         }
     } elseif ($action === 'step5_finish') {
         // Run initial sync check or set status
