@@ -30,6 +30,11 @@ function getDBConnection() {
 
     try {
         if ($db_type === 'mysql') {
+            // Ensure target database exists
+            $dsnHost = "mysql:host={$db_host};port={$db_port};charset=utf8mb4";
+            $pdoHost = new PDO($dsnHost, $db_user, $db_pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+            $pdoHost->exec("CREATE DATABASE IF NOT EXISTS `" . str_replace("`", "``", $db_name) . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
+
             $dsn = "mysql:host={$db_host};port={$db_port};dbname={$db_name};charset=utf8mb4";
             $pdo = new PDO($dsn, $db_user, $db_pass, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -49,7 +54,10 @@ function getDBConnection() {
             $pdo->exec("PRAGMA foreign_keys = ON;");
         }
     } catch (PDOException $e) {
-        // Fallback to SQLite if MySQL connection fails
+        if (file_exists($customConfigFile)) {
+            throw $e; // Re-throw MySQL exceptions when explicit config is set
+        }
+        // Fallback to SQLite only for unconfigured default local mode
         $db_dir = __DIR__ . '/../data';
         if (!is_dir($db_dir)) {
             mkdir($db_dir, 0777, true);

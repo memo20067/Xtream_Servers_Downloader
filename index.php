@@ -63,21 +63,25 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
             </a>
         </div>
 
-        <!-- Server Selector Dropdown & Add Server -->
-        <div class="d-flex align-items-center me-auto my-2 my-lg-0" style="max-width: 400px; width: 100%;">
+        <!-- Server & M3U Playlist Selector Dropdown & Add Actions -->
+        <div class="d-flex align-items-center me-auto my-2 my-lg-0" style="max-width: 500px; width: 100%;">
             <select id="server-select" class="form-select form-select-sm bg-dark text-white border-secondary me-2">
-                <?php if (empty($accessibleServers)): ?>
-                    <option value="" disabled selected>No Xtream Servers Available</option>
-                <?php else: ?>
+                <optgroup label="Xtream Codes Servers" id="optgroup-xtream">
                     <?php foreach ($accessibleServers as $idx => $srv): ?>
-                        <option value="<?= $srv['id'] ?>" <?= $idx === 0 ? 'selected' : '' ?>>
+                        <option value="xtream_<?= $srv['id'] ?>" <?= $idx === 0 ? 'selected' : '' ?>>
                             <?= htmlspecialchars($srv['name']) ?> <?= $srv['user_id'] ? '(Personal)' : '(Global)' ?>
                         </option>
                     <?php endforeach; ?>
-                <?php endif; ?>
+                </optgroup>
+                <optgroup label="M3U / M3U8 Playlists" id="optgroup-m3u">
+                    <!-- Populated dynamically via JS -->
+                </optgroup>
             </select>
-            <button class="btn btn-sm btn-outline-info text-nowrap" data-bs-toggle="modal" data-bs-target="#addPersonalServerModal">
-                <i class="bi bi-plus-circle me-1"></i><span data-i18n="add_server">Add Server</span>
+            <button class="btn btn-sm btn-outline-info text-nowrap me-1" data-bs-toggle="modal" data-bs-target="#addPersonalServerModal" title="Add Xtream Server">
+                <i class="bi bi-hdd-network me-1"></i><span data-i18n="add_server">Add Xtream</span>
+            </button>
+            <button class="btn btn-sm btn-outline-warning text-nowrap" data-bs-toggle="modal" data-bs-target="#addM3uModal" title="Add M3U / M3U8 Playlist">
+                <i class="bi bi-link-45deg me-1"></i><span>Add M3U</span>
             </button>
         </div>
 
@@ -188,6 +192,54 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
     </main>
 </div>
 
+<!-- Download Resolution Selection Modal -->
+<div class="modal fade" id="downloadResolutionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-panel text-white">
+            <div class="modal-header border-bottom border-secondary">
+                <h5 class="modal-title fw-bold" id="downloadModalTitle"><i class="bi bi-download me-2 text-info"></i>Select Video Quality</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-4">
+                <p class="text-secondary small mb-3" id="downloadItemName"></p>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="4K">
+                        <span><i class="bi bi-badge-4k me-2"></i>Ultra HD 4K (2160p)</span>
+                        <span class="badge bg-danger">4K</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="2K">
+                        <span><i class="bi bi-display me-2"></i>Quad HD 2K (1440p)</span>
+                        <span class="badge bg-warning text-dark">2K</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="1080p">
+                        <span><i class="bi bi-hd-topic me-2"></i>Full HD (1080p)</span>
+                        <span class="badge bg-primary">FHD</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="720p">
+                        <span><i class="bi bi-aspect-ratio me-2"></i>HD (720p)</span>
+                        <span class="badge bg-secondary">HD</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="480p">
+                        <span><i class="bi bi-sd-card me-2"></i>Standard (480p)</span>
+                        <span class="badge bg-dark border">SD</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="360p">
+                        <span><i class="bi bi-device-hdd me-2"></i>Medium (360p)</span>
+                        <span class="badge bg-dark border">360p</span>
+                    </button>
+                    <button class="btn btn-outline-info text-start d-flex justify-content-between align-items-center download-res-option" data-res="240p">
+                        <span><i class="bi bi-phone me-2"></i>Low Mobile (240p)</span>
+                        <span class="badge bg-dark border">240p</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer border-top border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Player Modal -->
 <div class="modal fade" id="playerModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -202,6 +254,36 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
                     </video>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add M3U / M3U8 Playlist Modal -->
+<div class="modal fade" id="addM3uModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-panel text-white">
+            <form id="addM3uForm">
+                <div class="modal-header border-bottom border-secondary">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-link-45deg me-2 text-warning"></i>Add M3U / M3U8 Playlist</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="m3uAlertContainer"></div>
+                    <div class="mb-3">
+                        <label class="form-label">Playlist Name</label>
+                        <input type="text" id="m3uNameInput" class="form-control glass-input" placeholder="e.g. My Sports M3U Playlist" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">M3U or M3U8 Playlist URL</label>
+                        <input type="url" id="m3uUrlInput" class="form-control glass-input" placeholder="http://example.com/playlist.m3u8" required>
+                        <div class="form-text text-muted">Direct HTTP/HTTPS link to your .m3u or .m3u8 playlist file.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold">Save Playlist</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -245,6 +327,12 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
         </div>
     </div>
 </div>
+
+<!-- News Ticker -->
+<?php
+require_once __DIR__ . '/includes/news_ticker.php';
+render_news_ticker();
+?>
 
 <!-- JS Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

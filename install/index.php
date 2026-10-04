@@ -18,18 +18,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'step1_db') {
-        $dbHost = trim($_POST['db_host'] ?? '127.0.0.1');
-        $dbPort = trim($_POST['db_port'] ?? '3306');
-        $dbName = trim($_POST['db_name'] ?? 'xtream_iptv');
-        $dbUser = trim($_POST['db_user'] ?? 'root');
-        $dbPass = trim($_POST['db_pass'] ?? '');
-        $dbType = trim($_POST['db_type'] ?? 'mysql');
+        $dbHost   = trim($_POST['db_host'] ?? '127.0.0.1');
+        $dbPort   = trim($_POST['db_port'] ?? '3306');
+        $dbName   = trim($_POST['db_name'] ?? 'xtream_iptv');
+        $dbUser   = trim($_POST['db_user'] ?? 'root');
+        $dbPass   = trim($_POST['db_pass'] ?? '');
+        $dbPrefix = trim($_POST['db_prefix'] ?? '');
+        $dbType   = trim($_POST['db_type'] ?? 'mysql');
 
-        // Test Connection
+        // Test Connection and create DB if needed
         try {
             if ($dbType === 'mysql') {
-                $dsn = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset=utf8mb4";
-                $testPdo = new PDO($dsn, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+                // Connect without dbname first to create database if it doesn't exist
+                $dsnHost = "mysql:host={$dbHost};port={$dbPort};charset=utf8mb4";
+                $testPdo = new PDO($dsnHost, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+                $testPdo->exec("CREATE DATABASE IF NOT EXISTS `" . str_replace("`", "``", $dbName) . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
+
+                // Connect to specific database
+                $dsnDb = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset=utf8mb4";
+                $testPdo = new PDO($dsnDb, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
             } else {
                 $dbDir = __DIR__ . '/../data';
                 if (!is_dir($dbDir)) mkdir($dbDir, 0777, true);
@@ -39,12 +46,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Save config file config/db_config.php
             $configContent = "<?php\nreturn " . var_export([
-                'db_type' => $dbType,
-                'db_host' => $dbHost,
-                'db_port' => $dbPort,
-                'db_name' => $dbName,
-                'db_user' => $dbUser,
-                'db_pass' => $dbPass
+                'db_type'   => $dbType,
+                'db_host'   => $dbHost,
+                'db_port'   => $dbPort,
+                'db_name'   => $dbName,
+                'db_user'   => $dbUser,
+                'db_pass'   => $dbPass,
+                'db_prefix' => $dbPrefix
             ], true) . ";\n";
 
             file_put_contents(__DIR__ . '/../config/db_config.php', $configContent);
@@ -93,16 +101,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($adminUser) || empty($adminEmail) || empty($adminPass)) {
             $error = "All mandatory fields (Username, Email, Password) must be filled.";
         } else {
-            $db = getDBConnection();
-            $stmt = $db->prepare("DELETE FROM users WHERE role = 'admin'");
-            $stmt->execute();
+            try {
+                // Defensively ensure database tables exist before admin creation
+                require_once __DIR__ . '/../config/init.php';
+                initializeDatabase();
 
-            $hashedPass = password_hash($adminPass, PASSWORD_BCRYPT);
-            $stmtIns = $db->prepare("INSERT INTO users (username, email, phone, password, role, has_paid_subscription) VALUES (?, ?, ?, ?, 'admin', 1)");
-            $stmtIns->execute([$adminUser, $adminEmail, $adminPhone, $hashedPass]);
+                $db = getDBConnection();
+                $stmt = $db->prepare("DELETE FROM users WHERE role = 'admin'");
+                $stmt->execute();
 
-            header("Location: index.php?step=5");
-            exit;
+                $hashedPass = password_hash($adminPass, PASSWORD_BCRYPT);
+                $stmtIns = $db->prepare("INSERT INTO users (username, email, phone, password, role, has_paid_subscription) VALUES (?, ?, ?, ?, 'admin', 1)");
+                $stmtIns->execute([$adminUser, $adminEmail, $adminPhone, $hashedPass]);
+
+                header("Location: index.php?step=5");
+                exit;
+            } catch (Exception $e) {
+                $error = "Failed to create super-admin account: " . $e->getMessage();
+            }
         }
     } elseif ($action === 'step5_finish') {
         // Run initial sync check or set status
@@ -184,9 +200,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="text" name="db_port" class="form-control bg-dark text-light border-secondary" value="3306" required>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Database Name</label>
-                        <input type="text" name="db_name" class="form-control bg-dark text-light border-secondary" value="xtream_iptv" required>
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label">Database Name</label>
+                            <input type="text" name="db_name" class="form-control bg-dark text-light border-secondary" value="xtream_iptv" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Table Prefix (Optional)</label>
+                            <input type="text" name="db_prefix" class="form-control bg-dark text-light border-secondary" placeholder="e.g. vb_">
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">

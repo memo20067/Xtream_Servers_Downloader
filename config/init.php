@@ -49,6 +49,15 @@ function initializeDatabase() {
                 username VARCHAR(100) NOT NULL,
                 password VARCHAR(100) NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES servers(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS m3u_playlists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER DEFAULT NULL,
+                name VARCHAR(100) NOT NULL,
+                url TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
 
@@ -60,6 +69,24 @@ function initializeDatabase() {
                 data TEXT,
                 last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS news_ticker (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER DEFAULT NULL,
+                message TEXT NOT NULL,
+                severity VARCHAR(20) NOT NULL DEFAULT 'info',
+                expires_at DATETIME DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS password_resets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email VARCHAR(100) NOT NULL,
+                code VARCHAR(10) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
         ");
     } else {
@@ -103,6 +130,15 @@ function initializeDatabase() {
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS m3u_playlists (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT DEFAULT NULL,
+                name VARCHAR(100) NOT NULL,
+                url TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
             CREATE TABLE IF NOT EXISTS playlist_cache (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 server_id INT NOT NULL,
@@ -111,6 +147,24 @@ function initializeDatabase() {
                 data LONGTEXT,
                 last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS news_ticker (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT DEFAULT NULL,
+                message TEXT NOT NULL,
+                severity ENUM('info', 'warning', 'alert') NOT NULL DEFAULT 'info',
+                expires_at DATETIME DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS password_resets (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                email VARCHAR(100) NOT NULL,
+                code VARCHAR(10) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
         ");
     }
