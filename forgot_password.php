@@ -38,12 +38,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'send_code') {
-        $email = trim($_POST['email'] ?? '');
-        if (empty($email)) {
-            $error = "يرجى إدخال البريد الإلكتروني الخاص بك.";
+        $email = strtolower(trim(filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL)));
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = "يرجى إدخال بريد إلكتروني صحيح ومكتمل (مثال: name@domain.com).";
         } else {
             // Check if email exists
-            $stmt = $pdo->prepare("SELECT id, username FROM users WHERE email = ?");
+            $stmt = $pdo->prepare("SELECT id, username FROM users WHERE LOWER(email) = LOWER(?)");
             $stmt->execute([$email]);
             $user = $stmt->fetch();
 

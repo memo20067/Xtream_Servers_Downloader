@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'update_profile') {
-        $email = trim($_POST['email'] ?? '');
+        $email = strtolower(trim(filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL)));
         $phone = trim($_POST['phone'] ?? '');
 
         if (empty($email) || empty($phone)) {

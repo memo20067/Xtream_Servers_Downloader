@@ -27,8 +27,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$stmtPlans = $db->query("SELECT * FROM subscription_plans ORDER BY id ASC");
-$plans = $stmtPlans->fetchAll();
+try {
+    $stmtPlans = $db->query("SELECT * FROM subscription_plans WHERE is_visible = 1 ORDER BY id ASC");
+    $plans = $stmtPlans->fetchAll();
+} catch (Exception $e) {
+    $stmtPlans = $db->query("SELECT * FROM subscription_plans ORDER BY id ASC");
+    $plans = $stmtPlans->fetchAll();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" dir="ltr">

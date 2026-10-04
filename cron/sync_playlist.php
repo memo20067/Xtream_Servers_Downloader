@@ -27,10 +27,21 @@ foreach ($servers as $server) {
     echo "Syncing Server ID: {$server['id']} ({$server['name']})...\n";
     $api = new XtreamAPI($server['host'], $server['username'], $server['password']);
 
+    require_once __DIR__ . '/../includes/cache_helper.php';
+
     // 1. Live Categories & Streams
     try {
         $liveCats = $api->getLiveCategories();
         $liveStreams = $api->getLiveStreams();
+
+        // Process and cache stream icons
+        if (is_array($liveStreams)) {
+            foreach ($liveStreams as &$st) {
+                if (!empty($st['stream_icon'])) {
+                    $st['stream_icon'] = CacheHelper::cacheImage($st['stream_icon']);
+                }
+            }
+        }
 
         savePlaylistCache($db, $server['id'], 'live_categories', null, $liveCats);
         savePlaylistCache($db, $server['id'], 'live_streams', null, $liveStreams);
@@ -44,6 +55,15 @@ foreach ($servers as $server) {
         $vodCats = $api->getVodCategories();
         $vodStreams = $api->getVodStreams();
 
+        // Process and cache movie posters
+        if (is_array($vodStreams)) {
+            foreach ($vodStreams as &$vod) {
+                if (!empty($vod['stream_icon'])) {
+                    $vod['stream_icon'] = CacheHelper::cacheImage($vod['stream_icon']);
+                }
+            }
+        }
+
         savePlaylistCache($db, $server['id'], 'vod_categories', null, $vodCats);
         savePlaylistCache($db, $server['id'], 'vod_streams', null, $vodStreams);
         echo " - Cached " . count($vodCats) . " Movie Categories & " . count($vodStreams) . " Movie Streams.\n";
@@ -55,6 +75,15 @@ foreach ($servers as $server) {
     try {
         $seriesCats = $api->getSeriesCategories();
         $seriesList = $api->getSeries();
+
+        // Process and cache series covers
+        if (is_array($seriesList)) {
+            foreach ($seriesList as &$srs) {
+                if (!empty($srs['cover'])) {
+                    $srs['cover'] = CacheHelper::cacheImage($srs['cover']);
+                }
+            }
+        }
 
         savePlaylistCache($db, $server['id'], 'series_categories', null, $seriesCats);
         savePlaylistCache($db, $server['id'], 'series', null, $seriesList);

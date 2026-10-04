@@ -18,9 +18,9 @@ $paidUsersCount = $stmtPaid->fetch()['cnt'];
         <div class="card bg-secondary text-white shadow-sm border-0">
             <div class="card-body text-center p-4">
                 <i class="bi bi-hdd-network fs-1 text-info mb-2"></i>
-                <h5 class="card-title">Global IPTV Servers</h5>
+                <h5 class="card-title"><?= admin_t('stat_servers') ?></h5>
                 <h2 class="display-6 fw-bold mb-0"><?= $globalServersCount ?></h2>
-                <a href="servers.php" class="btn btn-outline-info btn-sm mt-3">Manage Servers</a>
+                <a href="servers.php" class="btn btn-outline-info btn-sm mt-3"><?= admin_t('nav_servers') ?></a>
             </div>
         </div>
     </div>
@@ -28,9 +28,9 @@ $paidUsersCount = $stmtPaid->fetch()['cnt'];
         <div class="card bg-secondary text-white shadow-sm border-0">
             <div class="card-body text-center p-4">
                 <i class="bi bi-people fs-1 text-success mb-2"></i>
-                <h5 class="card-title">Total Registered Users</h5>
+                <h5 class="card-title"><?= admin_t('stat_users') ?></h5>
                 <h2 class="display-6 fw-bold mb-0"><?= $totalUsersCount ?></h2>
-                <a href="users.php" class="btn btn-outline-success btn-sm mt-3">Manage Users</a>
+                <a href="users.php" class="btn btn-outline-success btn-sm mt-3"><?= admin_t('nav_users') ?></a>
             </div>
         </div>
     </div>
@@ -38,9 +38,9 @@ $paidUsersCount = $stmtPaid->fetch()['cnt'];
         <div class="card bg-secondary text-white shadow-sm border-0">
             <div class="card-body text-center p-4">
                 <i class="bi bi-star-fill fs-1 text-warning mb-2"></i>
-                <h5 class="card-title">Active Subscriptions</h5>
+                <h5 class="card-title"><?= admin_t('stat_paid') ?></h5>
                 <h2 class="display-6 fw-bold mb-0"><?= $paidUsersCount ?></h2>
-                <a href="users.php" class="btn btn-outline-warning btn-sm mt-3">View Subscriptions</a>
+                <a href="users.php" class="btn btn-outline-warning btn-sm mt-3"><?= admin_t('nav_users') ?></a>
             </div>
         </div>
     </div>
@@ -48,11 +48,11 @@ $paidUsersCount = $stmtPaid->fetch()['cnt'];
 
 <div class="card bg-secondary text-white border-0 shadow-sm">
     <div class="card-header border-bottom border-dark">
-        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>System Overview</h5>
+        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i><?= admin_t('dash_welcome') ?></h5>
     </div>
     <div class="card-body">
-        <p class="mb-2">Welcome to the Xtream Codes IPTV Management Dashboard.</p>
-        <p class="mb-0 text-muted">Use the navigation bar above to manage global IPTV server configurations (Host, Username, Password, Serial ID) and toggle user subscription access levels.</p>
+        <p class="mb-2 fw-bold"><?= admin_t('dash_welcome') ?></p>
+        <p class="mb-0 text-muted"><?= admin_t('dash_sub') ?></p>
     </div>
 </div>
 

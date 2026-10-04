@@ -328,6 +328,34 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
     </div>
 </div>
 
+<!-- Footer with Social Contact Links -->
+<?php
+$wa = getSetting('whatsapp', '');
+$tg = getSetting('telegram', '');
+$fb = getSetting('facebook', '');
+$ig = getSetting('instagram', '');
+$appName = getSetting('app_name', 'Xtream IPTV Player');
+?>
+<?php if (!empty($wa) || !empty($tg) || !empty($fb) || !empty($ig)): ?>
+<footer class="text-center py-3 bg-dark border-top border-secondary text-white-50 mb-5">
+    <div class="container d-flex justify-content-center align-items-center gap-3">
+        <small class="fw-bold me-2"><?= htmlspecialchars($appName) ?> Support:</small>
+        <?php if (!empty($wa)): ?>
+            <a href="<?= htmlspecialchars(strpos($wa, 'http') === 0 ? $wa : 'https://wa.me/' . preg_replace('/[^0-9+]/', '', $wa)) ?>" target="_blank" class="btn btn-outline-success btn-sm"><i class="bi bi-whatsapp me-1"></i>WhatsApp</a>
+        <?php endif; ?>
+        <?php if (!empty($tg)): ?>
+            <a href="<?= htmlspecialchars(strpos($tg, 'http') === 0 ? $tg : 'https://t.me/' . ltrim($tg, '@')) ?>" target="_blank" class="btn btn-outline-info btn-sm"><i class="bi bi-telegram me-1"></i>Telegram</a>
+        <?php endif; ?>
+        <?php if (!empty($fb)): ?>
+            <a href="<?= htmlspecialchars(strpos($fb, 'http') === 0 ? $fb : 'https://facebook.com/' . $fb) ?>" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-facebook me-1"></i>Facebook</a>
+        <?php endif; ?>
+        <?php if (!empty($ig)): ?>
+            <a href="<?= htmlspecialchars(strpos($ig, 'http') === 0 ? $ig : 'https://instagram.com/' . ltrim($ig, '@')) ?>" target="_blank" class="btn btn-outline-warning btn-sm"><i class="bi bi-instagram me-1"></i>Instagram</a>
+        <?php endif; ?>
+    </div>
+</footer>
+<?php endif; ?>
+
 <!-- News Ticker -->
 <?php
 require_once __DIR__ . '/includes/news_ticker.php';
