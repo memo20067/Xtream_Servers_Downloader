@@ -34,11 +34,11 @@ foreach ($servers as $server) {
         $liveCats = $api->getLiveCategories();
         $liveStreams = $api->getLiveStreams();
 
-        // Process and cache stream icons
+        // Process and cache stream icons into /cache/images/{server}/live/
         if (is_array($liveStreams)) {
             foreach ($liveStreams as &$st) {
                 if (!empty($st['stream_icon'])) {
-                    $st['stream_icon'] = CacheHelper::cacheImage($st['stream_icon']);
+                    $st['stream_icon'] = CacheHelper::cacheImage($st['stream_icon'], 'server_' . $server['id'], 'live');
                 }
             }
         }
@@ -55,11 +55,11 @@ foreach ($servers as $server) {
         $vodCats = $api->getVodCategories();
         $vodStreams = $api->getVodStreams();
 
-        // Process and cache movie posters
+        // Process and cache movie posters into /cache/images/{server}/movies/
         if (is_array($vodStreams)) {
             foreach ($vodStreams as &$vod) {
                 if (!empty($vod['stream_icon'])) {
-                    $vod['stream_icon'] = CacheHelper::cacheImage($vod['stream_icon']);
+                    $vod['stream_icon'] = CacheHelper::cacheImage($vod['stream_icon'], 'server_' . $server['id'], 'movies');
                 }
             }
         }
@@ -76,11 +76,11 @@ foreach ($servers as $server) {
         $seriesCats = $api->getSeriesCategories();
         $seriesList = $api->getSeries();
 
-        // Process and cache series covers
+        // Process and cache series covers into /cache/images/{server}/series/
         if (is_array($seriesList)) {
             foreach ($seriesList as &$srs) {
                 if (!empty($srs['cover'])) {
-                    $srs['cover'] = CacheHelper::cacheImage($srs['cover']);
+                    $srs['cover'] = CacheHelper::cacheImage($srs['cover'], 'server_' . $server['id'], 'series');
                 }
             }
         }

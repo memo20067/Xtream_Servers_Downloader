@@ -231,15 +231,26 @@ switch ($action) {
     case 'get_epg':
         header('Content-Type: application/json');
         $type = $_GET['type'] ?? 'live';
+        $targetId = $streamId || $seriesId;
+
         if ($type === 'live' && $streamId) {
             $epgData = $api->getShortEpg($streamId);
+            if (!empty($epgData)) {
+                CacheHelper::updateItemEpg($serverId, 'live', $streamId, $epgData);
+            }
             echo json_encode($epgData);
         } elseif (($type === 'movie' || $type === 'vod') && $streamId) {
             $vodInfo = $api->getVodInfo($streamId);
+            if (!empty($vodInfo)) {
+                CacheHelper::updateItemEpg($serverId, 'movie', $streamId, $vodInfo);
+            }
             echo json_encode($vodInfo);
         } elseif ($type === 'series' && ($seriesId || $streamId)) {
             $targetSeriesId = $seriesId || $streamId;
             $seriesInfo = $api->getSeriesInfo($targetSeriesId);
+            if (!empty($seriesInfo)) {
+                CacheHelper::updateItemEpg($serverId, 'series', $targetSeriesId, $seriesInfo);
+            }
             echo json_encode($seriesInfo);
         } else {
             echo json_encode(['epg_listings' => []]);

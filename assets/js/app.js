@@ -345,7 +345,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const title = item.name || item.title || 'Untitled';
             let rawIcon = item.stream_icon || item.cover || 'https://via.placeholder.com/300x400?text=No+Cover';
             if (rawIcon.startsWith('http://') || rawIcon.startsWith('https://')) {
-                rawIcon = `api/cache_image.php?url=${encodeURIComponent(rawIcon)}`;
+                const cleanServer = currentServerId ? currentServerId.replace('xtream_', '').replace('m3u_', '') : 'global';
+                const mediaType = activeTab === 'movies' ? 'movies' : (activeTab === 'series' ? 'series' : 'live');
+                rawIcon = `api/cache_image.php?url=${encodeURIComponent(rawIcon)}&server=${encodeURIComponent(cleanServer)}&type=${mediaType}`;
             }
 
             const id = item.stream_id || item.series_id;
