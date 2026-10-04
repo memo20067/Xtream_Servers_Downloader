@@ -4,6 +4,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/xtream.php';
 require_once __DIR__ . '/../includes/m3u_parser.php';
+require_once __DIR__ . '/../includes/cache_helper.php';
 
 if (!isLoggedIn()) {
     header('Content-Type: application/json');
@@ -84,7 +85,7 @@ if (!$server) {
     exit;
 }
 
-$api = new XtreamAPI($server['host'], $server['username'], $server['password']);
+$api = new XtreamAPI($server['host'], $server['username'], $server['password'], $server['m3u_url'] ?? null);
 $categoryId = $_GET['category_id'] ?? null;
 $seriesId   = $_GET['series_id']   ?? null;
 $streamId   = $_GET['stream_id']   ?? null;
@@ -93,32 +94,86 @@ $ext        = $_GET['container_extension'] ?? $_GET['ext'] ?? 'mp4';
 switch ($action) {
     case 'get_live_categories':
         header('Content-Type: application/json');
-        echo json_encode($api->getLiveCategories());
+        $cached = CacheHelper::getCachedPlaylist($serverId, 'live_categories');
+        if ($cached && !empty($cached['data'])) {
+            echo json_encode($cached['data']);
+        } else {
+            $res = $api->getLiveCategories();
+            echo json_encode($res);
+        }
         break;
 
     case 'get_live_streams':
         header('Content-Type: application/json');
-        echo json_encode($api->getLiveStreams($categoryId));
+        $cached = CacheHelper::getCachedPlaylist($serverId, 'live_streams');
+        if ($cached && !empty($cached['data'])) {
+            $data = $cached['data'];
+            if ($categoryId !== null && $categoryId !== '') {
+                $data = array_values(array_filter($data, function($item) use ($categoryId) {
+                    return (string)($item['category_id'] ?? '') === (string)$categoryId;
+                }));
+            }
+            echo json_encode($data);
+        } else {
+            $res = $api->getLiveStreams($categoryId);
+            echo json_encode($res);
+        }
         break;
 
     case 'get_vod_categories':
         header('Content-Type: application/json');
-        echo json_encode($api->getVodCategories());
+        $cached = CacheHelper::getCachedPlaylist($serverId, 'vod_categories');
+        if ($cached && !empty($cached['data'])) {
+            echo json_encode($cached['data']);
+        } else {
+            $res = $api->getVodCategories();
+            echo json_encode($res);
+        }
         break;
 
     case 'get_vod_streams':
         header('Content-Type: application/json');
-        echo json_encode($api->getVodStreams($categoryId));
+        $cached = CacheHelper::getCachedPlaylist($serverId, 'vod_streams');
+        if ($cached && !empty($cached['data'])) {
+            $data = $cached['data'];
+            if ($categoryId !== null && $categoryId !== '') {
+                $data = array_values(array_filter($data, function($item) use ($categoryId) {
+                    return (string)($item['category_id'] ?? '') === (string)$categoryId;
+                }));
+            }
+            echo json_encode($data);
+        } else {
+            $res = $api->getVodStreams($categoryId);
+            echo json_encode($res);
+        }
         break;
 
     case 'get_series_categories':
         header('Content-Type: application/json');
-        echo json_encode($api->getSeriesCategories());
+        $cached = CacheHelper::getCachedPlaylist($serverId, 'series_categories');
+        if ($cached && !empty($cached['data'])) {
+            echo json_encode($cached['data']);
+        } else {
+            $res = $api->getSeriesCategories();
+            echo json_encode($res);
+        }
         break;
 
     case 'get_series':
         header('Content-Type: application/json');
-        echo json_encode($api->getSeries($categoryId));
+        $cached = CacheHelper::getCachedPlaylist($serverId, 'series');
+        if ($cached && !empty($cached['data'])) {
+            $data = $cached['data'];
+            if ($categoryId !== null && $categoryId !== '') {
+                $data = array_values(array_filter($data, function($item) use ($categoryId) {
+                    return (string)($item['category_id'] ?? '') === (string)$categoryId;
+                }));
+            }
+            echo json_encode($data);
+        } else {
+            $res = $api->getSeries($categoryId);
+            echo json_encode($res);
+        }
         break;
 
     case 'get_series_info':

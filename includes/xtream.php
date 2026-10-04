@@ -5,11 +5,13 @@ class XtreamAPI {
     private $host;
     private $username;
     private $password;
+    private $m3uUrl;
 
-    public function __construct($host, $username, $password) {
+    public function __construct($host, $username, $password, $m3uUrl = null) {
         $this->host = rtrim($host, '/');
         $this->username = $username;
         $this->password = $password;
+        $this->m3uUrl = $m3uUrl;
     }
 
     private function buildUrl($action, $params = []) {
@@ -21,6 +23,14 @@ class XtreamAPI {
         return $this->host . '/player_api.php?' . http_build_query($query);
     }
 
+    private function getM3uFallbackUrl() {
+        if (!empty($this->m3uUrl)) {
+            return $this->m3uUrl;
+        }
+        // Construct standard Xtream M3U download URL: http://host:port/get.php?username=X&password=Y&type=m3u_plus&output=ts
+        return $this->host . '/get.php?username=' . rawurlencode($this->username) . '&password=' . rawurlencode($this->password) . '&type=m3u_plus&output=ts';
+    }
+
     private function request($action, $params = []) {
         $url = $this->buildUrl($action, $params);
         $ch = curl_init();
@@ -29,6 +39,7 @@ class XtreamAPI {
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => 15,
             CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) XtreamIPTV/1.0'
         ]);
 
@@ -36,12 +47,31 @@ class XtreamAPI {
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        if ($httpCode !== 200 || $response === false) {
-            return [];
+        if ($httpCode === 200 && $response !== false) {
+            $data = json_decode($response, true);
+            if (is_array($data) && !empty($data)) {
+                return $data;
+            }
         }
 
-        $data = json_decode($response, true);
-        return is_array($data) ? $data : [];
+        // Fallback: Parse via M3U download URL
+        require_once __DIR__ . '/m3u_parser.php';
+        $m3uParsed = M3UParser::parseUrl($this->getM3uFallbackUrl());
+
+        if ($action === 'get_live_categories' || $action === 'get_vod_categories' || $action === 'get_series_categories') {
+            return $m3uParsed['categories'] ?? [];
+        } elseif ($action === 'get_live_streams' || $action === 'get_vod_streams' || $action === 'get_series') {
+            $catId = $params['category_id'] ?? null;
+            $channels = $m3uParsed['channels'] ?? [];
+            if ($catId !== null && $catId !== '') {
+                return array_values(array_filter($channels, function($c) use ($catId) {
+                    return (string)$c['category_id'] === (string)$catId;
+                }));
+            }
+            return $channels;
+        }
+
+        return [];
     }
 
     public function getLiveCategories() {
