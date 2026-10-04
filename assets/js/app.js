@@ -189,13 +189,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentServerId) return;
         showLoading();
 
+        const cleanServerId = currentServerId.replace('xtream_', '');
+
         // 1. Fetch Categories
         let catAction = 'get_live_categories';
         if (activeTab === 'movies') catAction = 'get_vod_categories';
         if (activeTab === 'series') catAction = 'get_series_categories';
 
         try {
-            const catRes = await fetch(`api/proxy.php?server_id=${currentServerId}&action=${catAction}`);
+            const catRes = await fetch(`api/proxy.php?server_id=${cleanServerId}&action=${catAction}`);
             const categories = await catRes.json();
 
             // Populate category dropdown
@@ -395,7 +397,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = btn.getAttribute('data-res');
             const { id, type, title } = pendingDownloadTarget;
 
-            const dlUrl = `api/proxy.php?server_id=${currentServerId}&action=download_stream&type=${type}&stream_id=${id}&resolution=${res}&title=${encodeURIComponent(title)}&container_extension=mp4`;
+            const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
+            const dlUrl = `api/proxy.php?server_id=${cleanServerId}&action=download_stream&type=${type}&stream_id=${id}&resolution=${res}&title=${encodeURIComponent(title)}&container_extension=mp4`;
 
             // Trigger file download
             const a = document.createElement('a');
@@ -440,9 +443,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function openSeriesDetails(seriesId, title) {
         showLoading();
         document.getElementById('series-title').textContent = title;
+        const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
 
         try {
-            const res = await fetch(`api/proxy.php?server_id=${currentServerId}&action=get_series_info&series_id=${seriesId}`);
+            const res = await fetch(`api/proxy.php?server_id=${cleanServerId}&action=get_series_info&series_id=${seriesId}`);
             const data = await res.json();
 
             contentGrid.classList.add('d-none');
