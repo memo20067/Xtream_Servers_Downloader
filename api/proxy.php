@@ -243,15 +243,7 @@ switch ($action) {
             $url = $api->getLiveStreamUrl($streamId, 'mp4');
         }
 
-        // Set response headers to force download in .mp4 format named with title
-        header('Content-Description: File Transfer');
-        header('Content-Type: video/mp4');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-
-        // Redirect or stream from target IPTV host URL
+        // Redirect directly to the full IPTV stream URL for direct full-file downloading
         header("Location: " . $url);
         exit;
 
