@@ -24,24 +24,39 @@ function render_news_ticker() {
         $tickerItems = [];
     }
 
+    // Detect current language (check frontend session 'lang' or admin session 'admin_lang', default to 'ar')
+    $lang = $_SESSION['lang'] ?? $_SESSION['admin_lang'] ?? 'ar';
+    $isAr = ($lang === 'ar');
+
     // Add subscription expiration warning if user has active plan
-    if ($currentUser && !empty($currentUser['subscription_plan_id'])) {
-        // Example dynamic warning message for subscribed users
+    if ($currentUser && (!empty($currentUser['subscription_plan_id']) || !empty($currentUser['has_paid_subscription']))) {
+        $welcomeMsg = $isAr
+            ? 'مرحباً بعودتك، ' . htmlspecialchars($currentUser['username']) . '! اشتراكك مفعل حالياً. استمتع ببث IPTV عالي السرعة.'
+            : 'Welcome back, ' . htmlspecialchars($currentUser['username']) . '! Your subscription is active. Enjoy high-speed IPTV streaming.';
+
         $tickerItems[] = [
             'severity' => 'info',
-            'message' => 'Welcome back, ' . htmlspecialchars($currentUser['username']) . '! Your subscription is active. Enjoy high-speed IPTV streaming.'
+            'message' => $welcomeMsg
         ];
     } elseif ($currentUser && empty($currentUser['has_paid_subscription'])) {
+        $warningMsg = $isAr
+            ? 'تنبيه: تحويل وتنزيل الأفلام والمسلسلات مقيد حتى تقوم بالترقية إلى إحدى باقات الاشتراك المدفوعة.'
+            : 'Notice: Downloads for Movies & Series are restricted until you upgrade to a paid subscription plan.';
+
         $tickerItems[] = [
             'severity' => 'warning',
-            'message' => 'Notice: Downloads for Movies & Series are restricted until you upgrade to a paid subscription plan.'
+            'message' => $warningMsg
         ];
     }
 
     if (empty($tickerItems)) {
+        $defaultMsg = $isAr
+            ? 'مرحباً بك في مشغل Nova IPTV - محتوى البث المباشر والأفلام والمسلسلات عالية الجودة'
+            : 'Welcome to Nova IPTV Player - Premium Live Stream & On-Demand Content';
+
         $tickerItems[] = [
             'severity' => 'info',
-            'message' => 'Welcome to Nova IPTV Player - Premium Live Stream & On-Demand Content'
+            'message' => $defaultMsg
         ];
     }
     ?>
