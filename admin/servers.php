@@ -15,13 +15,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $host = trim($_POST['host'] ?? '');
         $username = trim($_POST['username'] ?? '');
         $password = trim($_POST['password'] ?? '');
+        $m3u_url = trim($_POST['m3u_url'] ?? '');
 
         if (!empty($name) && !empty($host) && !empty($username) && !empty($password)) {
-            $stmt = $db->prepare("INSERT INTO servers (user_id, name, host, username, password) VALUES (NULL, ?, ?, ?, ?)");
-            $stmt->execute([$name, $host, $username, $password]);
-            $msg = 'Global Xtream server added successfully!';
+            $stmt = $db->prepare("INSERT INTO servers (user_id, name, host, username, password, m3u_url) VALUES (NULL, ?, ?, ?, ?, ?)");
+            $stmt->execute([$name, $host, $username, $password, $m3u_url]);
+            $msg = admin_t('msg_server_added');
         } else {
-            $error = 'All fields are required.';
+            $error = 'Server Name, Host, Username and Password are required.';
         }
     } elseif ($action === 'edit') {
         $id = (int)($_POST['id'] ?? 0);
@@ -52,9 +53,9 @@ $servers = $stmtServers->fetchAll();
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3><i class="bi bi-hdd-network me-2"></i>Global Xtream IPTV Servers</h3>
+    <h3><i class="bi bi-hdd-network me-2"></i><?= admin_t('servers_title') ?></h3>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addServerModal">
-        <i class="bi bi-plus-circle me-1"></i>Add Global Server
+        <i class="bi bi-plus-circle me-1"></i><?= admin_t('btn_add_server') ?>
     </button>
 </div>
 
@@ -78,13 +79,13 @@ $servers = $stmtServers->fetchAll();
             <table class="table table-dark table-hover mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th>Serial ID</th>
-                        <th>Server Name</th>
-                        <th>Host / URL</th>
-                        <th>Username</th>
-                        <th>Password</th>
+                        <th><?= admin_t('tbl_id') ?></th>
+                        <th><?= admin_t('tbl_name') ?></th>
+                        <th><?= admin_t('tbl_host') ?></th>
+                        <th><?= admin_t('tbl_username') ?></th>
+                        <th><?= admin_t('tbl_m3u_url') ?></th>
                         <th>Created At</th>
-                        <th class="text-end">Actions</th>
+                        <th class="text-end"><?= admin_t('tbl_actions') ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -99,7 +100,7 @@ $servers = $stmtServers->fetchAll();
                                 <td><?= htmlspecialchars($s['name']) ?></td>
                                 <td><code><?= htmlspecialchars($s['host']) ?></code></td>
                                 <td><?= htmlspecialchars($s['username']) ?></td>
-                                <td><code><?= htmlspecialchars($s['password']) ?></code></td>
+                                <td><code><?= !empty($s['m3u_url']) ? htmlspecialchars($s['m3u_url']) : '<span class="text-muted">-</span>' ?></code></td>
                                 <td><?= htmlspecialchars($s['created_at']) ?></td>
                                 <td class="text-end">
                                     <button class="btn btn-sm btn-outline-warning me-1" 
@@ -130,30 +131,34 @@ $servers = $stmtServers->fetchAll();
             <form method="POST">
                 <input type="hidden" name="action" value="add">
                 <div class="modal-header border-bottom border-dark">
-                    <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add Global Server</h5>
+                    <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i><?= admin_t('modal_add_server') ?></h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Server Name</label>
+                        <label class="form-label"><?= admin_t('lbl_server_name') ?></label>
                         <input type="text" name="name" class="form-control" placeholder="e.g. Premium GOTV" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Host / URL</label>
+                        <label class="form-label"><?= admin_t('lbl_host_url') ?></label>
                         <input type="text" name="host" class="form-control" placeholder="e.g. http://gotv.ghost.co:80" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Username</label>
-                        <input type="text" name="username" class="form-control" placeholder="e.g. kml250dig41" required>
+                        <label class="form-label"><?= admin_t('lbl_username') ?></label>
+                        <input type="text" name="username" class="form-control" placeholder="e.g. user123" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="text" name="password" class="form-control" placeholder="e.g. 3485964i2" required>
+                        <label class="form-label"><?= admin_t('lbl_password') ?></label>
+                        <input type="text" name="password" class="form-control" placeholder="e.g. pass123" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><?= admin_t('lbl_m3u_url') ?></label>
+                        <input type="url" name="m3u_url" class="form-control" placeholder="http://example.com/live.m3u8">
                     </div>
                 </div>
                 <div class="modal-footer border-top border-dark">
-                    <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Server</button>
+                    <button type="button" class="btn btn-dark" data-bs-dismiss="modal"><?= admin_t('btn_cancel') ?></button>
+                    <button type="submit" class="btn btn-primary"><?= admin_t('btn_save') ?></button>
                 </div>
             </form>
         </div>
@@ -168,30 +173,34 @@ $servers = $stmtServers->fetchAll();
                 <input type="hidden" name="action" value="edit">
                 <input type="hidden" name="id" id="edit_id">
                 <div class="modal-header border-bottom border-dark">
-                    <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Global Server</h5>
+                    <h5 class="modal-title"><i class="bi bi-pencil me-2"></i><?= admin_t('modal_add_server') ?></h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Server Name</label>
+                        <label class="form-label"><?= admin_t('lbl_server_name') ?></label>
                         <input type="text" name="name" id="edit_name" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Host / URL</label>
+                        <label class="form-label"><?= admin_t('lbl_host_url') ?></label>
                         <input type="text" name="host" id="edit_host" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Username</label>
+                        <label class="form-label"><?= admin_t('lbl_username') ?></label>
                         <input type="text" name="username" id="edit_username" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Password</label>
+                        <label class="form-label"><?= admin_t('lbl_password') ?></label>
                         <input type="text" name="password" id="edit_password" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><?= admin_t('lbl_m3u_url') ?></label>
+                        <input type="url" name="m3u_url" id="edit_m3u_url" class="form-control">
                     </div>
                 </div>
                 <div class="modal-footer border-top border-dark">
-                    <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning">Update Server</button>
+                    <button type="button" class="btn btn-dark" data-bs-dismiss="modal"><?= admin_t('btn_cancel') ?></button>
+                    <button type="submit" class="btn btn-warning"><?= admin_t('btn_save') ?></button>
                 </div>
             </form>
         </div>
@@ -207,6 +216,7 @@ function editServer(server) {
     document.getElementById('edit_host').value = server.host;
     document.getElementById('edit_username').value = server.username;
     document.getElementById('edit_password').value = server.password;
+    document.getElementById('edit_m3u_url').value = server.m3u_url || '';
     
     var editModal = new bootstrap.Modal(document.getElementById('editServerModal'));
     editModal.show();

@@ -7,7 +7,7 @@ function registerUser($username, $email, $phone, $password) {
     $db = getDBConnection();
 
     $username = trim($username);
-    $email = trim($email);
+    $email = strtolower(trim(filter_var($email, FILTER_SANITIZE_EMAIL)));
     $phone = trim($phone);
 
     if (empty($username) || empty($email) || empty($phone) || empty($password)) {
@@ -48,7 +48,7 @@ function loginUser($usernameOrEmail, $password) {
         return ['success' => false, 'error' => 'Username/Email and Password are required.'];
     }
 
-    $stmt = $db->prepare("SELECT * FROM users WHERE username = ? OR email = ? LIMIT 1");
+    $stmt = $db->prepare("SELECT * FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1");
     $stmt->execute([$input, $input]);
     $user = $stmt->fetch();
 
