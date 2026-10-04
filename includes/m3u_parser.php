@@ -60,10 +60,10 @@ class M3UParser {
                     $currentChannel['stream_icon'] = trim($matches[1]);
                 }
 
-                // Extract channel name
-                $parts = explode(',', $line, 2);
-                if (count($parts) > 1) {
-                    $channelName = trim($parts[1]);
+                // Extract channel name from the last comma in #EXTINF line
+                $lastCommaPos = strrpos($line, ',');
+                if ($lastCommaPos !== false) {
+                    $channelName = trim(substr($line, $lastCommaPos + 1));
                     if (!empty($channelName)) {
                         $currentChannel['name'] = $channelName;
                     }
