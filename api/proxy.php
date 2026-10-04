@@ -51,6 +51,14 @@ if ($action === 'get_m3u_content') {
         echo json_encode(['error' => 'M3U Playlist ID is required.']);
         exit;
     }
+
+    // Check playlist_cache first
+    $cached = CacheHelper::getCachedPlaylist('m3u_' . $m3uId, 'm3u_content');
+    if ($cached && !empty($cached['data'])) {
+        echo json_encode($cached['data']);
+        exit;
+    }
+
     $pdo = getDBConnection();
     $stmt = $pdo->prepare("SELECT url FROM m3u_playlists WHERE id = ? AND (user_id = ? OR user_id IS NULL)");
     $stmt->execute([$m3uId, $_SESSION['user_id']]);
@@ -62,6 +70,17 @@ if ($action === 'get_m3u_content') {
     }
 
     $parsed = M3UParser::parseUrl($playlist['url']);
+
+    // Cache icons
+    if (isset($parsed['channels']) && is_array($parsed['channels'])) {
+        foreach ($parsed['channels'] as &$ch) {
+            if (!empty($ch['stream_icon'])) {
+                $ch['stream_icon'] = CacheHelper::cacheImage($ch['stream_icon']);
+            }
+        }
+    }
+
+    CacheHelper::setCachedPlaylist('m3u_' . $m3uId, 'm3u_content', $parsed);
     echo json_encode($parsed);
     exit;
 }
@@ -99,6 +118,9 @@ switch ($action) {
             echo json_encode($cached['data']);
         } else {
             $res = $api->getLiveCategories();
+            if (is_array($res) && !empty($res)) {
+                CacheHelper::setCachedPlaylist($serverId, 'live_categories', $res);
+            }
             echo json_encode($res);
         }
         break;
@@ -115,7 +137,20 @@ switch ($action) {
             }
             echo json_encode($data);
         } else {
-            $res = $api->getLiveStreams($categoryId);
+            $res = $api->getLiveStreams();
+            if (is_array($res) && !empty($res)) {
+                foreach ($res as &$item) {
+                    if (!empty($item['stream_icon'])) {
+                        $item['stream_icon'] = CacheHelper::cacheImage($item['stream_icon']);
+                    }
+                }
+                CacheHelper::setCachedPlaylist($serverId, 'live_streams', $res);
+                if ($categoryId !== null && $categoryId !== '') {
+                    $res = array_values(array_filter($res, function($item) use ($categoryId) {
+                        return (string)($item['category_id'] ?? '') === (string)$categoryId;
+                    }));
+                }
+            }
             echo json_encode($res);
         }
         break;
@@ -127,6 +162,9 @@ switch ($action) {
             echo json_encode($cached['data']);
         } else {
             $res = $api->getVodCategories();
+            if (is_array($res) && !empty($res)) {
+                CacheHelper::setCachedPlaylist($serverId, 'vod_categories', $res);
+            }
             echo json_encode($res);
         }
         break;
@@ -143,7 +181,20 @@ switch ($action) {
             }
             echo json_encode($data);
         } else {
-            $res = $api->getVodStreams($categoryId);
+            $res = $api->getVodStreams();
+            if (is_array($res) && !empty($res)) {
+                foreach ($res as &$item) {
+                    if (!empty($item['stream_icon'])) {
+                        $item['stream_icon'] = CacheHelper::cacheImage($item['stream_icon']);
+                    }
+                }
+                CacheHelper::setCachedPlaylist($serverId, 'vod_streams', $res);
+                if ($categoryId !== null && $categoryId !== '') {
+                    $res = array_values(array_filter($res, function($item) use ($categoryId) {
+                        return (string)($item['category_id'] ?? '') === (string)$categoryId;
+                    }));
+                }
+            }
             echo json_encode($res);
         }
         break;
@@ -155,6 +206,9 @@ switch ($action) {
             echo json_encode($cached['data']);
         } else {
             $res = $api->getSeriesCategories();
+            if (is_array($res) && !empty($res)) {
+                CacheHelper::setCachedPlaylist($serverId, 'series_categories', $res);
+            }
             echo json_encode($res);
         }
         break;
@@ -171,7 +225,20 @@ switch ($action) {
             }
             echo json_encode($data);
         } else {
-            $res = $api->getSeries($categoryId);
+            $res = $api->getSeries();
+            if (is_array($res) && !empty($res)) {
+                foreach ($res as &$item) {
+                    if (!empty($item['cover'])) {
+                        $item['cover'] = CacheHelper::cacheImage($item['cover']);
+                    }
+                }
+                CacheHelper::setCachedPlaylist($serverId, 'series', $res);
+                if ($categoryId !== null && $categoryId !== '') {
+                    $res = array_values(array_filter($res, function($item) use ($categoryId) {
+                        return (string)($item['category_id'] ?? '') === (string)$categoryId;
+                    }));
+                }
+            }
             echo json_encode($res);
         }
         break;
