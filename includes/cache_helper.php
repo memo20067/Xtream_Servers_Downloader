@@ -2,17 +2,45 @@
 // includes/cache_helper.php - Image & Metadata Local Caching Helper
 
 class CacheHelper {
-    public static function getCacheDir() {
-        $dir = __DIR__ . '/../cache/images/';
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0777, true);
+    public static function ensureServerFolders($serverFolder) {
+        if (empty($serverFolder)) return;
+        $cleanFolder = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $serverFolder);
+        $base = __DIR__ . '/../cache/images/' . $cleanFolder . '/';
+
+        foreach (['live', 'movies', 'series'] as $sub) {
+            $path = $base . $sub . '/';
+            if (!is_dir($path)) {
+                @mkdir($path, 0777, true);
+            }
         }
-        return $dir;
     }
 
-    public static function cacheImage($imageUrl) {
+    public static function getCacheDir($serverFolder = '', $mediaType = '') {
+        $base = __DIR__ . '/../cache/images/';
+        if (!empty($serverFolder)) {
+            // Sanitize folder name
+            $cleanFolder = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $serverFolder);
+            $base .= $cleanFolder . '/';
+            self::ensureServerFolders($cleanFolder);
+        }
+        if (!empty($mediaType) && in_array($mediaType, ['live', 'movies', 'series'])) {
+            $base .= $mediaType . '/';
+        }
+
+        if (!is_dir($base)) {
+            @mkdir($base, 0777, true);
+        }
+        return $base;
+    }
+
+    public static function cacheImage($imageUrl, $serverFolder = 'global', $mediaType = 'live') {
         if (empty($imageUrl) || !filter_var($imageUrl, FILTER_VALIDATE_URL)) {
             return $imageUrl;
+        }
+
+        $cleanServerFolder = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $serverFolder);
+        if (!in_array($mediaType, ['live', 'movies', 'series'])) {
+            $mediaType = 'live';
         }
 
         $hash = md5($imageUrl);
@@ -22,8 +50,9 @@ class CacheHelper {
         }
 
         $filename = $hash . '.' . $ext;
-        $localPath = self::getCacheDir() . $filename;
-        $publicUrl = 'cache/images/' . $filename;
+        $targetDir = self::getCacheDir($cleanServerFolder, $mediaType);
+        $localPath = $targetDir . $filename;
+        $publicUrl = 'cache/images/' . $cleanServerFolder . '/' . $mediaType . '/' . $filename;
 
         // If cached file already exists, return local cached URL directly
         if (file_exists($localPath) && filesize($localPath) > 0) {
@@ -54,7 +83,7 @@ class CacheHelper {
 
     public static function getCachedPlaylist($serverId, $type) {
         $pdo = getDBConnection();
-        $stmt = $pdo->prepare("SELECT data, last_updated FROM playlist_cache WHERE server_id = ? AND type = ?");
+        $stmt = $pdo->prepare("SELECT data, last_updated FROM playlist_cache WHERE server_id = ? AND type = ? AND item_id IS NULL");
         $stmt->execute([$serverId, $type]);
         $row = $stmt->fetch();
 
@@ -72,11 +101,20 @@ class CacheHelper {
         $jsonData = json_encode($data);
         $now = date('Y-m-d H:i:s');
 
-        // Delete existing cache for server and type
-        $stmtDel = $pdo->prepare("DELETE FROM playlist_cache WHERE server_id = ? AND type = ?");
+        // Delete existing full list cache entry
+        $stmtDel = $pdo->prepare("DELETE FROM playlist_cache WHERE server_id = ? AND type = ? AND item_id IS NULL");
         $stmtDel->execute([$serverId, $type]);
 
-        $stmtIns = $pdo->prepare("INSERT INTO playlist_cache (server_id, type, data, last_updated) VALUES (?, ?, ?, ?)");
+        $stmtIns = $pdo->prepare("INSERT INTO playlist_cache (server_id, type, item_id, data, last_updated) VALUES (?, ?, NULL, ?, ?)");
         $stmtIns->execute([$serverId, $type, $jsonData, $now]);
+    }
+
+    public static function updateItemEpg($serverId, $type, $itemId, $epgData) {
+        $pdo = getDBConnection();
+        $jsonEpg = is_string($epgData) ? $epgData : json_encode($epgData);
+        $now = date('Y-m-d H:i:s');
+
+        $stmt = $pdo->prepare("UPDATE playlist_cache SET epg_data = ?, last_updated = ? WHERE server_id = ? AND type = ? AND item_id = ?");
+        $stmt->execute([$jsonEpg, $now, $serverId, $type, $itemId]);
     }
 }

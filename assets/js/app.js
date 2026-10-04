@@ -4,6 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeTab = 'live';
     let currentServerId = document.getElementById('server-select') ? document.getElementById('server-select').value : null;
     let loadedItems = [];
+    let filteredItems = [];
+    let displayedCount = 0;
+    const BATCH_SIZE = 20;
     let playerInstance = null;
 
     const contentGrid = document.getElementById('content-grid');
@@ -278,14 +281,37 @@ document.addEventListener('DOMContentLoaded', () => {
         const query = searchInput.value.toLowerCase().trim();
         const selectedCategory = categorySelect ? categorySelect.value : '';
 
-        const filtered = loadedItems.filter(item => {
+        filteredItems = loadedItems.filter(item => {
             const name = (item.name || item.title || '').toLowerCase();
             const matchesQuery = name.includes(query);
             const matchesCat = !selectedCategory || (item.category_id && String(item.category_id) === String(selectedCategory));
             return matchesQuery && matchesCat;
         });
 
-        renderGrid(filtered);
+        contentGrid.innerHTML = '';
+        displayedCount = 0;
+        appendNextBatch();
+    }
+
+    // Infinite Scroll Event Listener
+    window.addEventListener('scroll', () => {
+        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 400) {
+            if (displayedCount < filteredItems.length) {
+                appendNextBatch();
+            }
+        }
+    });
+
+    function appendNextBatch() {
+        if (!filteredItems || filteredItems.length === 0) {
+            contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-muted">${t('no_content')}</div>`;
+            return;
+        }
+
+        const batch = filteredItems.slice(displayedCount, displayedCount + BATCH_SIZE);
+        displayedCount += batch.length;
+
+        renderBatch(batch);
     }
 
     // Grid Zooming Logic
@@ -311,20 +337,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderGrid(items) {
-        contentGrid.innerHTML = '';
-
-        if (!items || items.length === 0) {
-            contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-muted">${t('no_content')}</div>`;
-            return;
-        }
-
+    function renderBatch(items) {
         items.forEach(item => {
             const col = document.createElement('div');
             col.className = `col-6 col-sm-4 ${currentZoomClass}`;
 
             const title = item.name || item.title || 'Untitled';
-            const icon = item.stream_icon || item.cover || 'https://via.placeholder.com/300x400?text=No+Cover';
+            let rawIcon = item.stream_icon || item.cover || 'https://via.placeholder.com/300x400?text=No+Cover';
+            if (rawIcon.startsWith('http://') || rawIcon.startsWith('https://')) {
+                const cleanServer = currentServerId ? 'server_' + currentServerId.replace('xtream_', '').replace('m3u_', '') : 'global';
+                const mediaType = activeTab === 'movies' ? 'movies' : (activeTab === 'series' ? 'series' : 'live');
+                rawIcon = `api/cache_image.php?url=${encodeURIComponent(rawIcon)}&server=${encodeURIComponent(cleanServer)}&type=${mediaType}`;
+            }
+
             const id = item.stream_id || item.series_id;
             const containerExt = item.container_extension || 'mp4';
             const directUrl = item.url || '';
@@ -371,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
             col.innerHTML = `
                 <div class="media-card">
                     <div class="media-poster-wrapper ${activeTab === 'live' ? 'square' : ''}">
-                        <img src="${icon}" class="media-poster" alt="${title}" onerror="this.src='https://via.placeholder.com/300x400?text=No+Cover'">
+                        <img src="${rawIcon}" loading="lazy" class="media-poster" alt="${title}" onerror="this.src='https://via.placeholder.com/300x400?text=No+Cover'">
                     </div>
                     <div class="media-card-body">
                         <div class="media-title" title="${title}">${title}</div>

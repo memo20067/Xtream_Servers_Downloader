@@ -65,12 +65,15 @@ function initializeDatabase() {
 
             CREATE TABLE IF NOT EXISTS playlist_cache (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                server_id INTEGER NOT NULL,
+                server_id VARCHAR(100) NOT NULL,
                 type VARCHAR(20) NOT NULL,
+                item_id VARCHAR(100) DEFAULT NULL,
                 category_id VARCHAR(50) DEFAULT NULL,
-                data TEXT,
-                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+                name VARCHAR(255) DEFAULT NULL,
+                image_url TEXT DEFAULT NULL,
+                epg_data TEXT DEFAULT NULL,
+                data TEXT DEFAULT NULL,
+                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS news_ticker (
@@ -145,12 +148,15 @@ function initializeDatabase() {
 
             CREATE TABLE IF NOT EXISTS playlist_cache (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                server_id INT NOT NULL,
+                server_id VARCHAR(100) NOT NULL,
                 type VARCHAR(20) NOT NULL,
+                item_id VARCHAR(100) DEFAULT NULL,
                 category_id VARCHAR(50) DEFAULT NULL,
-                data LONGTEXT,
-                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+                name VARCHAR(255) DEFAULT NULL,
+                image_url TEXT DEFAULT NULL,
+                epg_data LONGTEXT DEFAULT NULL,
+                data LONGTEXT DEFAULT NULL,
+                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS news_ticker (
