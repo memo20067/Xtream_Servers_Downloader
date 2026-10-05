@@ -149,7 +149,7 @@ switch ($action) {
             echo json_encode($cached['data']);
         } else {
             $res = $api->getVodCategories();
-            if (is_array($res) && !empty($res)) {
+            if (is_array($res) && !empty($res) && !isset($res['error'])) {
                 CacheHelper::setCachedPlaylist($serverId, 'vod_categories', $res);
             }
             echo json_encode($res);
@@ -169,7 +169,7 @@ switch ($action) {
             echo json_encode($data);
         } else {
             $res = $api->getVodStreams();
-            if (is_array($res) && !empty($res)) {
+            if (is_array($res) && !empty($res) && !isset($res['error'])) {
                 CacheHelper::setCachedPlaylist($serverId, 'vod_streams', $res);
                 if ($categoryId !== null && $categoryId !== '') {
                     $res = array_values(array_filter($res, function($item) use ($categoryId) {
@@ -188,7 +188,7 @@ switch ($action) {
             echo json_encode($cached['data']);
         } else {
             $res = $api->getSeriesCategories();
-            if (is_array($res) && !empty($res)) {
+            if (is_array($res) && !empty($res) && !isset($res['error'])) {
                 CacheHelper::setCachedPlaylist($serverId, 'series_categories', $res);
             }
             echo json_encode($res);
@@ -208,7 +208,7 @@ switch ($action) {
             echo json_encode($data);
         } else {
             $res = $api->getSeries();
-            if (is_array($res) && !empty($res)) {
+            if (is_array($res) && !empty($res) && !isset($res['error'])) {
                 CacheHelper::setCachedPlaylist($serverId, 'series', $res);
                 if ($categoryId !== null && $categoryId !== '') {
                     $res = array_values(array_filter($res, function($item) use ($categoryId) {

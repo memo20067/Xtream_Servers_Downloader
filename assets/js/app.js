@@ -235,6 +235,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const catRes = await fetch(`api/proxy.php?server_id=${cleanServerId}&action=${catAction}`);
             const categories = await catRes.json();
 
+            if (categories && categories.error) {
+                contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-danger"><i class="bi bi-exclamation-triangle-fill me-2 fs-3"></i><br>${categories.error}</div>`;
+                return;
+            }
+
             // Populate category dropdown
             categorySelect.innerHTML = `<option value="" data-i18n="all_categories">${t('all_categories')}</option>`;
             if (Array.isArray(categories)) {

@@ -13,7 +13,7 @@ class M3UParser {
             CURLOPT_SSL_VERIFYHOST => false,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 5,
-            CURLOPT_USERAGENT => 'IPTVSmartersPro/3.0 (Windows NT 10.0; Win64; x64)'
+            CURLOPT_USERAGENT => 'IPTVSmartersPlayer/3.0.0'
         ]);
 
         $content = curl_exec($ch);
