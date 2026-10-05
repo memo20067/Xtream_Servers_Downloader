@@ -1,111 +1,153 @@
 <?php
-// includes/m3u_parser.php - M3U / M3U8 Playlist Parser Helper
+// includes/m3u_parser.php - High-Performance RegEx M3U / M3U8 Playlist Parser Helper
 
 class M3UParser {
-    public static function parseUrl($url) {
+    /**
+     * Fetch and parse an M3U or M3U8 playlist from a remote URL.
+     *
+     * @param string $url Target M3U / M3U8 playlist URL
+     * @param bool $sslVerify Whether to verify SSL certificates (default false)
+     * @return array Array containing parsed 'categories', 'channels', or 'error' message
+     */
+    public static function parseUrl(string $url, bool $sslVerify = false): array {
         $ch = curl_init();
+        $headers = [
+            'User-Agent: IPTVSmartersPro/3.1.5 (Linux; Android 11)',
+            'Accept: */*',
+            'Connection: keep-alive'
+        ];
+
         curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
+            CURLOPT_URL            => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => 15,
-            CURLOPT_TIMEOUT => 60,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_SSL_VERIFYPEER => $sslVerify,
+            CURLOPT_SSL_VERIFYHOST => $sslVerify ? 2 : 0,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS => 5,
-            CURLOPT_USERAGENT => 'IPTVSmartersPlayer/3.0.0'
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_ENCODING       => ''
         ]);
 
-        $content = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $content  = curl_exec($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlErr  = curl_error($ch);
         curl_close($ch);
 
         if ($httpCode !== 200 || empty($content) || !empty($curlErr)) {
-            require_once __DIR__ . '/logger.php';
+            $logPath = __DIR__ . '/logger.php';
             $errMsg = !empty($curlErr)
                 ? "cURL Error fetching M3U playlist: {$curlErr} (HTTP {$httpCode})"
                 : "Failed to fetch M3U playlist URL (HTTP {$httpCode}).";
 
-            Logger::log($errMsg, "ERROR", "m3u_fetch", $url, [
-                'url' => $url,
-                'http_code' => $httpCode,
-                'curl_error' => $curlErr
-            ]);
+            if (file_exists($logPath)) {
+                require_once $logPath;
+                if (class_exists('Logger') && method_exists('Logger', 'log')) {
+                    Logger::log($errMsg, "ERROR", "m3u_fetch", $url, [
+                        'url' => $url,
+                        'http_code' => $httpCode,
+                        'curl_error' => $curlErr
+                    ]);
+                }
+            }
+
             return ['error' => $errMsg, 'categories' => [], 'channels' => []];
         }
 
         return self::parseContent($content);
     }
 
-    public static function parseContent($content) {
-        $lines = explode("\n", str_replace("\r", "", $content));
-        $channels = [];
+    /**
+     * High-performance M3U/M3U8 string parser powered by Regular Expressions.
+     *
+     * @param string $content Raw M3U playlist content
+     * @return array
+     */
+    public static function parseContent(string $content): array {
+        $channels      = [];
         $categoriesMap = [];
-        $currentChannel = null;
-        $idCounter = 1;
+        $idCounter     = 1;
 
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line)) continue;
+        // Split playlist content into blocks delimited by #EXTINF
+        $blocks = preg_split('/#EXTINF:/i', $content);
 
-            if (strpos($line, '#EXTINF:') === 0) {
-                $currentChannel = [
-                    'stream_id' => $idCounter++,
-                    'name' => 'Untitled Channel',
-                    'category_id' => 'general',
-                    'category_name' => 'General',
-                    'stream_icon' => '',
-                    'url' => ''
-                ];
-
-                // Extract group-title (category)
-                if (preg_match('/group-title="([^"]+)"/i', $line, $matches)) {
-                    $group = trim($matches[1]);
-                    if (!empty($group)) {
-                        $catId = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $group));
-                        $currentChannel['category_id'] = $catId;
-                        $currentChannel['category_name'] = $group;
-                        $categoriesMap[$catId] = $group;
-                    }
-                }
-
-                // Extract tvg-logo (icon)
-                if (preg_match('/tvg-logo="([^"]+)"/i', $line, $matches)) {
-                    $currentChannel['stream_icon'] = trim($matches[1]);
-                }
-
-                // Extract channel name from the last comma in #EXTINF line
-                $lastCommaPos = strrpos($line, ',');
-                if ($lastCommaPos !== false) {
-                    $channelName = trim(substr($line, $lastCommaPos + 1));
-                    if (!empty($channelName)) {
-                        $currentChannel['name'] = $channelName;
-                    }
-                }
-
-                if (!isset($categoriesMap[$currentChannel['category_id']])) {
-                    $categoriesMap[$currentChannel['category_id']] = $currentChannel['category_name'];
-                }
-
-            } elseif (strpos($line, '#') !== 0 && $currentChannel !== null) {
-                $currentChannel['url'] = $line;
-                $channels[] = $currentChannel;
-                $currentChannel = null;
+        foreach ($blocks as $block) {
+            $block = trim($block);
+            if (empty($block)) {
+                continue;
             }
+
+            // Extract the first line (#EXTINF attributes & channel title) and second line (stream URL)
+            $lines = explode("\n", str_replace("\r", "", $block));
+            $extLine = trim($lines[0]);
+            $streamUrl = '';
+
+            // Find the stream URL from subsequent lines
+            for ($i = 1; $i < count($lines); $i++) {
+                $line = trim($lines[$i]);
+                if (!empty($line) && strpos($line, '#') !== 0) {
+                    $streamUrl = $line;
+                    break;
+                }
+            }
+
+            if (empty($streamUrl)) {
+                continue;
+            }
+
+            // Default channel metadata
+            $channelName  = 'Untitled Channel';
+            $categoryId   = 'general';
+            $categoryName = 'General';
+            $streamIcon   = '';
+
+            // RegEx extraction for group-title
+            if (preg_match('/group-title="([^"]+)"/i', $extLine, $matches)) {
+                $group = trim($matches[1]);
+                if (!empty($group)) {
+                    $categoryName = $group;
+                    $categoryId = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $group));
+                }
+            }
+
+            // RegEx extraction for tvg-logo
+            if (preg_match('/tvg-logo="([^"]+)"/i', $extLine, $matches)) {
+                $streamIcon = trim($matches[1]);
+            }
+
+            // RegEx or substring extraction for channel title (text after the last comma)
+            $lastCommaPos = strrpos($extLine, ',');
+            if ($lastCommaPos !== false) {
+                $parsedTitle = trim(substr($extLine, $lastCommaPos + 1));
+                if (!empty($parsedTitle)) {
+                    $channelName = $parsedTitle;
+                }
+            }
+
+            $categoriesMap[$categoryId] = $categoryName;
+
+            $channels[] = [
+                'stream_id'     => $idCounter++,
+                'name'          => $channelName,
+                'category_id'   => $categoryId,
+                'category_name' => $categoryName,
+                'stream_icon'   => $streamIcon,
+                'url'           => $streamUrl
+            ];
         }
 
         $categories = [];
         foreach ($categoriesMap as $catId => $catName) {
             $categories[] = [
-                'category_id' => $catId,
+                'category_id'   => $catId,
                 'category_name' => $catName
             ];
         }
 
         return [
             'categories' => $categories,
-            'channels' => $channels
+            'channels'   => $channels
         ];
     }
 }

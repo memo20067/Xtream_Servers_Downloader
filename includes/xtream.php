@@ -4,7 +4,7 @@
  *
  * Provides high-performance, resilient access to Xtream Codes IPTV servers
  * with anti-blocking request spoofing, PDO database caching, JSON validation,
- * and graceful fallback to M3U playlists.
+ * configurable SSL verification, and graceful fallback to M3U playlists.
  *
  * PHP Version: 7.4+ / 8.x
  */
@@ -16,6 +16,7 @@ class XtreamAPI {
     private ?string $m3uUrl;
     private ?PDO $pdo;
     private int $cacheTtl;
+    private bool $sslVerify;
 
     /**
      * @param string $host Base host URL (e.g., "http://example.com:8080")
@@ -24,6 +25,7 @@ class XtreamAPI {
      * @param string|null $m3uUrl Direct custom M3U URL (optional)
      * @param PDO|null $pdo Database connection for caching (optional)
      * @param int $cacheTtl Cache time-to-live in seconds (default 12 hours = 43200s)
+     * @param bool|null $sslVerify Enable SSL certificate verification (default read from settings or false)
      */
     public function __construct(
         string $host,
@@ -31,7 +33,8 @@ class XtreamAPI {
         string $password,
         ?string $m3uUrl = null,
         ?PDO $pdo = null,
-        int $cacheTtl = 43200
+        int $cacheTtl = 43200,
+        ?bool $sslVerify = null
     ) {
         $this->host     = rtrim(trim($host), '/');
         $this->username = trim($username);
@@ -42,7 +45,6 @@ class XtreamAPI {
         if ($pdo !== null) {
             $this->pdo = $pdo;
         } else {
-            // Attempt auto-resolve PDO if getDBConnection function exists
             if (function_exists('getDBConnection')) {
                 try {
                     $this->pdo = getDBConnection();
@@ -51,6 +53,17 @@ class XtreamAPI {
                 }
             } else {
                 $this->pdo = null;
+            }
+        }
+
+        if ($sslVerify !== null) {
+            $this->sslVerify = $sslVerify;
+        } else {
+            // Check setting from DB if available
+            if (function_exists('getSetting')) {
+                $this->sslVerify = (getSetting('ssl_verify', '0') === '1');
+            } else {
+                $this->sslVerify = false;
             }
         }
     }
@@ -114,7 +127,6 @@ class XtreamAPI {
                 }
             }
         } catch (Throwable $e) {
-            // Log or ignore cache read exceptions gracefully
             $this->logError("Cache read failed: " . $e->getMessage(), "WARNING", $action);
         }
 
@@ -210,12 +222,12 @@ class XtreamAPI {
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_TIMEOUT        => 15,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_SSL_VERIFYPEER => $this->sslVerify,
+            CURLOPT_SSL_VERIFYHOST => $this->sslVerify ? 2 : 0,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS      => 5,
             CURLOPT_HTTPHEADER     => $headers,
-            CURLOPT_ENCODING       => '' // Enable automatic compression decoding (gzip/deflate)
+            CURLOPT_ENCODING       => ''
         ]);
 
         $response = curl_exec($ch);
@@ -262,7 +274,7 @@ class XtreamAPI {
             return ['error' => $logMsg . " | M3UParser class or method missing."];
         }
 
-        $m3uParsed = M3UParser::parseUrl($this->getM3uFallbackUrl());
+        $m3uParsed = M3UParser::parseUrl($this->getM3uFallbackUrl(), $this->sslVerify);
 
         if (isset($m3uParsed['error']) && !empty($m3uParsed['error'])) {
             return ['error' => $logMsg . " | M3U Fallback Error: " . $m3uParsed['error']];
@@ -292,16 +304,10 @@ class XtreamAPI {
         return ['error' => $logMsg];
     }
 
-    /**
-     * Get Live TV Categories.
-     */
     public function getLiveCategories(): array {
         return $this->request('get_live_categories');
     }
 
-    /**
-     * Get Live Streams (optionally filtered by category ID).
-     */
     public function getLiveStreams($categoryId = null): array {
         $params = [];
         if ($categoryId !== null && $categoryId !== '') {
@@ -310,16 +316,10 @@ class XtreamAPI {
         return $this->request('get_live_streams', $params);
     }
 
-    /**
-     * Get Movies (VOD) Categories.
-     */
     public function getVodCategories(): array {
         return $this->request('get_vod_categories');
     }
 
-    /**
-     * Get Movie (VOD) Streams (optionally filtered by category ID).
-     */
     public function getVodStreams($categoryId = null): array {
         $params = [];
         if ($categoryId !== null && $categoryId !== '') {
@@ -328,16 +328,10 @@ class XtreamAPI {
         return $this->request('get_vod_streams', $params);
     }
 
-    /**
-     * Get Series Categories.
-     */
     public function getSeriesCategories(): array {
         return $this->request('get_series_categories');
     }
 
-    /**
-     * Get Series List (optionally filtered by category ID).
-     */
     public function getSeries($categoryId = null): array {
         $params = [];
         if ($categoryId !== null && $categoryId !== '') {
@@ -346,48 +340,30 @@ class XtreamAPI {
         return $this->request('get_series', $params);
     }
 
-    /**
-     * Get Series Info and Episode Details.
-     */
     public function getSeriesInfo($seriesId): array {
         return $this->request('get_series_info', ['series_id' => $seriesId]);
     }
 
-    /**
-     * Get Short EPG listing for a live channel.
-     */
     public function getShortEpg($streamId, int $limit = 4): array {
         return $this->request('get_short_epg', ['stream_id' => $streamId, 'limit' => $limit], false);
     }
 
-    /**
-     * Get Movie (VOD) Info and Metadata.
-     */
     public function getVodInfo($streamId): array {
         return $this->request('get_vod_info', ['vod_id' => $streamId]);
     }
 
-    /**
-     * Build direct Live TV stream play URL.
-     */
     public function getLiveStreamUrl($streamId, string $extension = 'm3u8'): string {
         return $this->host . '/live/' . rawurlencode($this->username)
             . '/' . rawurlencode($this->password)
             . '/' . rawurlencode($streamId) . '.' . $extension;
     }
 
-    /**
-     * Build direct Movie (VOD) stream play URL.
-     */
     public function getVodStreamUrl($streamId, string $extension = 'mp4'): string {
         return $this->host . '/movie/' . rawurlencode($this->username)
             . '/' . rawurlencode($this->password)
             . '/' . rawurlencode($streamId) . '.' . $extension;
     }
 
-    /**
-     * Build direct Series Episode stream play URL.
-     */
     public function getSeriesStreamUrl($streamId, string $extension = 'mp4'): string {
         return $this->host . '/series/' . rawurlencode($this->username)
             . '/' . rawurlencode($this->password)
