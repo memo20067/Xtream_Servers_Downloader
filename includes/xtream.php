@@ -43,7 +43,7 @@ class XtreamAPI {
             CURLOPT_SSL_VERIFYHOST => false,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 5,
-            CURLOPT_USERAGENT => 'IPTVSmartersPro/3.0 (Windows NT 10.0; Win64; x64)'
+            CURLOPT_USERAGENT => 'IPTVSmartersPlayer/3.0.0'
         ]);
 
         $response = curl_exec($ch);
@@ -59,7 +59,11 @@ class XtreamAPI {
         }
 
         require_once __DIR__ . '/logger.php';
-        Logger::log("Xtream API player_api.php call failed or returned invalid JSON (HTTP {$httpCode}). Falling back to M3U URL.", "WARNING", $action, $this->host, [
+        $logMsg = !empty($curlErr)
+            ? "Xtream API call error: {$curlErr} (HTTP {$httpCode})"
+            : "Xtream API call failed or returned invalid JSON (HTTP {$httpCode})";
+
+        Logger::log($logMsg . ". Falling back to M3U URL.", "WARNING", $action, $this->host, [
             'url' => $url,
             'http_code' => $httpCode,
             'curl_error' => $curlErr
@@ -69,20 +73,25 @@ class XtreamAPI {
         require_once __DIR__ . '/m3u_parser.php';
         $m3uParsed = M3UParser::parseUrl($this->getM3uFallbackUrl());
 
+        if (isset($m3uParsed['error']) && !empty($m3uParsed['error'])) {
+            return ['error' => $logMsg . " | M3U Fallback Error: " . $m3uParsed['error']];
+        }
+
         if ($action === 'get_live_categories' || $action === 'get_vod_categories' || $action === 'get_series_categories') {
-            return $m3uParsed['categories'] ?? [];
+            $categories = $m3uParsed['categories'] ?? [];
+            return !empty($categories) ? $categories : ['error' => $logMsg];
         } elseif ($action === 'get_live_streams' || $action === 'get_vod_streams' || $action === 'get_series') {
             $catId = $params['category_id'] ?? null;
             $channels = $m3uParsed['channels'] ?? [];
             if ($catId !== null && $catId !== '') {
-                return array_values(array_filter($channels, function($c) use ($catId) {
+                $channels = array_values(array_filter($channels, function($c) use ($catId) {
                     return (string)$c['category_id'] === (string)$catId;
                 }));
             }
-            return $channels;
+            return !empty($channels) ? $channels : ['error' => $logMsg];
         }
 
-        return [];
+        return ['error' => $logMsg];
     }
 
     public function getLiveCategories() {
