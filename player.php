@@ -16,6 +16,7 @@ $title    = $_GET['title']     ?? 'IPTV Stream';
 $icon     = $_GET['icon']      ?? '';
 $ext      = $_GET['ext']       ?? 'mp4';
 $seriesId = $_GET['series_id'] ?? null;
+$streamUrl = $_GET['stream_url'] ?? null;
 
 // Determine text direction for RTL/LTR sidebar layout
 $lang = $_SESSION['lang'] ?? 'ar';
@@ -142,6 +143,8 @@ $isRtl = ($lang === 'ar');
     const streamId = <?= json_encode($streamId) ?>;
     const seriesId = <?= json_encode($seriesId) ?>;
     const ext = <?= json_encode($ext) ?>;
+    let initialStreamUrl = <?= json_encode($streamUrl) ?>;
+    let currentActiveStream = initialStreamUrl;
 
     const player = videojs('iptv-player', {
         controls: true,
@@ -150,23 +153,45 @@ $isRtl = ($lang === 'ar');
         fluid: true
     });
 
+    // Auto-fallback to stream_proxy on playback/CORS errors
+    let proxyRetryAttempted = false;
+    player.on('error', function() {
+        const err = player.error();
+        console.warn('Playback error encountered:', err);
+        if (!proxyRetryAttempted && currentActiveStream && !currentActiveStream.includes('action=stream_proxy')) {
+            proxyRetryAttempted = true;
+            console.log('Retrying stream through server proxy fallback...');
+            const proxyUrl = `api/proxy.php?action=stream_proxy&url=${encodeURIComponent(currentActiveStream)}`;
+            player.src({ src: proxyUrl, type: 'application/x-mpegURL' });
+            player.play().catch(e => console.error('Proxy play error:', e));
+        }
+    });
+
+    function playUrl(url, type = 'live') {
+        if (!url) return;
+        currentActiveStream = url;
+        proxyRetryAttempted = false;
+        const mimeType = (type === 'live' || url.includes('.m3u8') || url.includes('.m3u')) ? 'application/x-mpegURL' : 'video/mp4';
+        player.src({ src: url, type: mimeType });
+        player.play().catch(e => console.log('Autoplay blocked:', e));
+    }
+
     async function loadStream(id, type, extension = 'mp4') {
         let url = `api/proxy.php?server_id=${serverId}&action=get_stream_url&type=${type}&stream_id=${id}&container_extension=${extension}`;
         try {
             const res = await fetch(url);
             const data = await res.json();
             if (data.stream_url) {
-                const streamUrl = data.stream_url;
-                const mimeType = (type === 'live' || streamUrl.includes('.m3u8')) ? 'application/x-mpegURL' : 'video/mp4';
-                player.src({ src: streamUrl, type: mimeType });
-                player.play();
+                playUrl(data.stream_url, type);
             }
         } catch (err) {
             console.error('Error loading stream:', err);
         }
     }
 
-    if (streamId && streamType !== 'series') {
+    if (initialStreamUrl) {
+        playUrl(initialStreamUrl, streamType);
+    } else if (streamId && streamType !== 'series') {
         loadStream(streamId, streamType, ext);
     }
 

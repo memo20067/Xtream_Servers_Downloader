@@ -133,6 +133,7 @@ function getAccessibleServers() {
 
 function canAccessServer($serverId) {
     if (!isLoggedIn()) return false;
+    if (isAdmin()) return true;
     $servers = getAccessibleServers();
     foreach ($servers as $server) {
         if ((int)$server['id'] === (int)$serverId) {

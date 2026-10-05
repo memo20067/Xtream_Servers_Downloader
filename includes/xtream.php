@@ -122,8 +122,13 @@ class XtreamAPI {
         }
 
         try {
-            $cacheKey  = $this->getCacheKey($action, $params);
             $dataJson  = json_encode($data, JSON_UNESCAPED_UNICODE);
+            if ($dataJson === false || strlen($dataJson) > 500000) {
+                // Do not send huge payloads to MySQL to avoid max_allowed_packet disconnection
+                return false;
+            }
+
+            $cacheKey  = $this->getCacheKey($action, $params);
             $expiresAt = date('Y-m-d H:i:s', time() + $this->cacheTtl);
             $driver    = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
 

@@ -7,15 +7,85 @@ require_once __DIR__ . '/../includes/m3u_parser.php';
 require_once __DIR__ . '/../includes/cache_helper.php';
 require_once __DIR__ . '/../includes/logger.php';
 
+// Enable CORS for AJAX and player requests
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Headers: *");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit;
+}
+
+$action = $_GET['action'] ?? $_POST['action'] ?? '';
+
+// Stream Proxy Endpoint (Can proxy streams / HLS with CORS headers for in-browser playback)
+if ($action === 'stream_proxy') {
+    $streamUrl = $_GET['url'] ?? '';
+    if (empty($streamUrl)) {
+        header('HTTP/1.1 400 Bad Request');
+        echo 'Missing stream url';
+        exit;
+    }
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $streamUrl,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 5,
+        CURLOPT_TIMEOUT        => 20,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    ]);
+    $response     = curl_exec($ch);
+    $httpCode     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType  = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $effectiveUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL) ?: $streamUrl;
+    curl_close($ch);
+
+    if ($httpCode !== 200 || $response === false) {
+        http_response_code($httpCode ?: 502);
+        echo "Failed to fetch remote stream.";
+        exit;
+    }
+
+    // Check if response is M3U / M3U8 playlist text
+    $isM3u = (stripos($contentType, 'mpegurl') !== false || stripos($streamUrl, '.m3u') !== false || strpos($response, '#EXTM3U') === 0);
+
+    if ($isM3u) {
+        header("Content-Type: application/x-mpegURL");
+        $lines = explode("\n", $response);
+        $output = [];
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if (!empty($trimmed) && strpos($trimmed, '#') !== 0) {
+                // Resolve relative chunk URL
+                $resolvedUrl = M3UParser::resolveRelativeUrl($effectiveUrl, $trimmed);
+                // Route through proxy to ensure CORS compliance for chunks
+                $output[] = 'api/proxy.php?action=stream_proxy&url=' . rawurlencode($resolvedUrl);
+            } else {
+                $output[] = $line;
+            }
+        }
+        echo implode("\n", $output);
+        exit;
+    }
+
+    // Binary media chunk (.ts, .aac, .mp4)
+    header("Content-Type: " . ($contentType ?: 'video/mp2t'));
+    header("Content-Length: " . strlen($response));
+    echo $response;
+    exit;
+}
+
+// All other API endpoints require logged in user
 if (!isLoggedIn()) {
     header('Content-Type: application/json');
     echo json_encode(['error' => 'Unauthorized access.']);
     exit;
 }
-
-$serverId = $_GET['server_id'] ?? $_POST['server_id'] ?? null;
-$m3uId    = $_GET['m3u_id']    ?? $_POST['m3u_id']    ?? null;
-$action   = $_GET['action']    ?? $_POST['action']    ?? '';
 
 // Handle M3U playlist endpoints
 if ($action === 'add_m3u_playlist') {
@@ -28,23 +98,64 @@ if ($action === 'add_m3u_playlist') {
         exit;
     }
 
-    $pdo = getDBConnection();
-    $stmt = $pdo->prepare("INSERT INTO m3u_playlists (user_id, name, url) VALUES (?, ?, ?)");
-    $stmt->execute([$_SESSION['user_id'], $name, $url]);
-    $newId = $pdo->lastInsertId();
+    try {
+        $pdo = getDBConnection();
+        $stmt = $pdo->prepare("INSERT INTO m3u_playlists (user_id, name, url) VALUES (?, ?, ?)");
+        $stmt->execute([$_SESSION['user_id'], $name, $url]);
+        $newId = $pdo->lastInsertId();
 
-    echo json_encode(['success' => true, 'm3u_id' => $newId, 'name' => $name]);
+        echo json_encode(['success' => true, 'm3u_id' => $newId, 'name' => $name]);
+    } catch (\Throwable $e) {
+        echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
+if ($action === 'delete_m3u_playlist') {
+    header('Content-Type: application/json');
+    $id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
+    if ($id <= 0) {
+        echo json_encode(['error' => 'Invalid Playlist ID.']);
+        exit;
+    }
+
+    try {
+        $pdo = getDBConnection();
+        if (isAdmin()) {
+            $stmt = $pdo->prepare("DELETE FROM m3u_playlists WHERE id = ?");
+            $stmt->execute([$id]);
+        } else {
+            $stmt = $pdo->prepare("DELETE FROM m3u_playlists WHERE id = ? AND user_id = ?");
+            $stmt->execute([$id, $_SESSION['user_id']]);
+        }
+
+        // Delete cache file if exists
+        $cacheFile = CacheHelper::getPlaylistCachePath('m3u_' . $id, 'm3u_content');
+        if (file_exists($cacheFile)) {
+            @unlink($cacheFile);
+        }
+
+        echo json_encode(['success' => true]);
+    } catch (\Throwable $e) {
+        echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    }
     exit;
 }
 
 if ($action === 'get_m3u_playlists') {
     header('Content-Type: application/json');
-    $pdo = getDBConnection();
-    $stmt = $pdo->prepare("SELECT id, name, url FROM m3u_playlists WHERE user_id = ? OR user_id IS NULL ORDER BY name ASC");
-    $stmt->execute([$_SESSION['user_id']]);
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    try {
+        $pdo = getDBConnection();
+        $stmt = $pdo->prepare("SELECT id, name, url FROM m3u_playlists WHERE user_id = ? OR user_id IS NULL ORDER BY name ASC");
+        $stmt->execute([$_SESSION['user_id']]);
+        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    } catch (\Throwable $e) {
+        echo json_encode([]);
+    }
     exit;
 }
+
+$m3uId = $_GET['m3u_id'] ?? $_POST['m3u_id'] ?? null;
 
 if ($action === 'get_m3u_content') {
     header('Content-Type: application/json');
@@ -60,24 +171,32 @@ if ($action === 'get_m3u_content') {
         exit;
     }
 
-    $pdo = getDBConnection();
-    $stmt = $pdo->prepare("SELECT url FROM m3u_playlists WHERE id = ? AND (user_id = ? OR user_id IS NULL)");
-    $stmt->execute([$m3uId, $_SESSION['user_id']]);
-    $playlist = $stmt->fetch(PDO::FETCH_ASSOC);
+    try {
+        $pdo = getDBConnection();
+        $stmt = $pdo->prepare("SELECT id, name, url FROM m3u_playlists WHERE id = ? AND (user_id = ? OR user_id IS NULL)");
+        $stmt->execute([$m3uId, $_SESSION['user_id']]);
+        $playlist = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$playlist) {
-        echo json_encode(['error' => 'M3U Playlist not found.']);
-        exit;
+        if (!$playlist) {
+            echo json_encode(['error' => 'M3U Playlist not found.']);
+            exit;
+        }
+
+        $parsed = M3UParser::parseUrl($playlist['url'], false, $playlist['name'] ?? '');
+
+        if (!isset($parsed['error'])) {
+            CacheHelper::setCachedPlaylist('m3u_' . $m3uId, 'm3u_content', $parsed);
+        }
+        echo json_encode($parsed);
+    } catch (\Throwable $e) {
+        echo json_encode(['error' => 'Failed to parse M3U content: ' . $e->getMessage()]);
     }
-
-    $parsed = M3UParser::parseUrl($playlist['url']);
-
-    CacheHelper::setCachedPlaylist('m3u_' . $m3uId, 'm3u_content', $parsed);
-    echo json_encode($parsed);
     exit;
 }
 
-if (!$serverId && !$m3uId) {
+$serverId = $_GET['server_id'] ?? $_POST['server_id'] ?? null;
+
+if (!$serverId) {
     header('Content-Type: application/json');
     echo json_encode(['error' => 'Server ID or M3U ID is required.']);
     exit;
@@ -85,7 +204,7 @@ if (!$serverId && !$m3uId) {
 
 if (!canAccessServer($serverId)) {
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Access denied to this server. Paid subscription required for global servers.']);
+    echo json_encode(['error' => 'Access denied to this server.']);
     exit;
 }
 
@@ -289,7 +408,6 @@ switch ($action) {
         }
 
         $type = $_GET['type'] ?? 'movie';
-        $resolution = $_GET['resolution'] ?? '1080p';
         $title = $_GET['title'] ?? ($type === 'series' ? 'Episode' : 'Movie');
 
         // Sanitize filename for download
@@ -305,7 +423,6 @@ switch ($action) {
             exit;
         }
 
-        // Always enforce mp4 container extension for downloads
         $ext = 'mp4';
 
         if ($type === 'movie' || $type === 'vod') {

@@ -10,6 +10,11 @@ if (!isLoggedIn()) {
 $currentUser = getCurrentUser();
 $accessibleServers = getAccessibleServers();
 
+$db = getDBConnection();
+$stmtM3u = $db->prepare("SELECT id, name, url, user_id FROM m3u_playlists WHERE user_id = ? OR user_id IS NULL ORDER BY name ASC");
+$stmtM3u->execute([$_SESSION['user_id']]);
+$accessibleM3u = $stmtM3u->fetchAll();
+
 // Handle adding personal server
 $serverMsg = '';
 $serverErr = '';
@@ -74,14 +79,21 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
                     <?php endforeach; ?>
                 </optgroup>
                 <optgroup label="M3U / M3U8 Playlists" id="optgroup-m3u">
-                    <!-- Populated dynamically via JS -->
+                    <?php foreach ($accessibleM3u as $idx => $m3u): ?>
+                        <option value="m3u_<?= $m3u['id'] ?>" <?= (empty($accessibleServers) && $idx === 0) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($m3u['name']) ?> (M3U)
+                        </option>
+                    <?php endforeach; ?>
                 </optgroup>
             </select>
             <button class="btn btn-sm btn-outline-info text-nowrap me-1" data-bs-toggle="modal" data-bs-target="#addPersonalServerModal" title="Add Xtream Server">
                 <i class="bi bi-hdd-network me-1"></i><span data-i18n="add_server">Add Xtream</span>
             </button>
-            <button class="btn btn-sm btn-outline-warning text-nowrap" data-bs-toggle="modal" data-bs-target="#addM3uModal" title="Add M3U / M3U8 Playlist">
+            <button class="btn btn-sm btn-outline-warning text-nowrap me-1" data-bs-toggle="modal" data-bs-target="#addM3uModal" title="Add M3U / M3U8 Playlist">
                 <i class="bi bi-link-45deg me-1"></i><span>Add M3U</span>
+            </button>
+            <button class="btn btn-sm btn-outline-danger text-nowrap d-none" id="btn-delete-m3u" title="Delete Selected M3U Playlist">
+                <i class="bi bi-trash"></i>
             </button>
         </div>
 
@@ -253,9 +265,14 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
 <div class="modal fade" id="playerModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content bg-dark text-white border-secondary">
-            <div class="modal-header border-secondary py-2">
-                <h5 class="modal-title" id="playerModalLabel">Video Player</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-header border-secondary py-2 d-flex justify-content-between align-items-center">
+                <h5 class="modal-title text-truncate me-2" id="playerModalLabel">Video Player</h5>
+                <div class="d-flex align-items-center gap-2">
+                    <a href="#" id="btn-open-full-player" class="btn btn-sm btn-outline-info text-nowrap" target="_blank" title="Open in Dedicated Player">
+                        <i class="bi bi-box-arrow-up-right me-1"></i>Full Player
+                    </a>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
             </div>
             <div class="modal-body p-0">
                 <div class="ratio ratio-16x9">

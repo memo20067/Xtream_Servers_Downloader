@@ -4,10 +4,15 @@
 function getDBConnection() {
     static $pdo = null;
     if ($pdo !== null) {
-        return $pdo;
+        try {
+            $pdo->query("SELECT 1");
+            return $pdo;
+        } catch (\Throwable $e) {
+            $pdo = null;
+        }
     }
 
-    $db_type = getenv('DB_TYPE') ?: 'sqlite'; // Default to sqlite for portable local execution, or mysql
+    $db_type = getenv('DB_TYPE') ?: 'mysql';
     $db_host = getenv('DB_HOST') ?: '127.0.0.1';
     $db_name = getenv('DB_NAME') ?: 'xtream_iptv';
     $db_user = getenv('DB_USER') ?: 'root';
@@ -49,10 +54,7 @@ function getDBConnection() {
             $pdo->exec("PRAGMA foreign_keys = ON;");
         }
     } catch (PDOException $e) {
-        if (file_exists($customConfigFile)) {
-            throw $e; // Re-throw MySQL exceptions when explicit config is set
-        }
-        // Fallback to SQLite only for unconfigured default local mode
+        // Fallback to SQLite only if MySQL failed and db_config wasn't explicitly mysql
         $db_dir = __DIR__ . '/../data';
         if (!is_dir($db_dir)) {
             mkdir($db_dir, 0777, true);
