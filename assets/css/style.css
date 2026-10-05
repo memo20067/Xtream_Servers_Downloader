@@ -1,148 +1,348 @@
-/* assets/css/style.css - Nova IPTV Dark Glassmorphism Theme */
+/* assets/css/style.css - Modern IPTV & Video Streaming Platform Theme */
 :root {
-    --bg-space: #090c15;
-    --bg-glass-panel: rgba(18, 24, 38, 0.75);
-    --bg-glass-card: rgba(23, 31, 50, 0.65);
-    --bg-glass-input: rgba(12, 17, 29, 0.85);
-    --border-glass: rgba(255, 255, 255, 0.12);
-    --border-glow: rgba(0, 229, 255, 0.5);
+    --bg-main: #0f1117;
+    --bg-sidebar: #161822;
+    --bg-card: #1f2230;
+    --bg-input: #12141d;
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-metallic: rgba(255, 255, 255, 0.18);
+    --accent-blue: #0088ff;
+    --accent-hover: #0066cc;
     --neon-blue: #00e5ff;
-    --neon-cyan: #00f0ff;
-    --neon-purple: #7000ff;
     --text-primary: #ffffff;
-    --text-secondary: #a0aec0;
-    --text-muted: #718096;
+    --text-secondary: #9ea3b4;
+    --text-muted: #62687a;
+    --sidebar-width: 240px;
 }
 
 body {
-    background: radial-gradient(circle at 50% -20%, #1a233d 0%, #090c15 80%);
-    background-attachment: fixed;
+    background-color: var(--bg-main);
     color: var(--text-primary);
     font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     min-height: 100vh;
+    margin: 0;
+    padding: 0;
     overflow-x: hidden;
-    padding-bottom: 50px; /* Space for news ticker */
+    padding-bottom: 40px; /* Space for news ticker */
 }
 
-/* Glassmorphism Containers & Cards */
+/* Top Navigation Bar */
+.app-navbar {
+    background-color: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border-color);
+    height: 65px;
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+}
+
+.search-container .form-control {
+    background-color: var(--bg-input) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+    border-radius: 20px 0 0 20px !important;
+    padding-left: 18px;
+}
+
+.search-container .input-group-text {
+    background-color: var(--bg-input) !important;
+    border: 1px solid var(--border-color) !important;
+    border-left: none !important;
+    color: var(--text-secondary) !important;
+    border-radius: 0 20px 20px 0 !important;
+}
+
+/* Glassmorphism Containers */
 .glass-panel {
-    background: var(--bg-glass-panel);
+    background: rgba(22, 24, 34, 0.85);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--border-glass);
+    border: 1px solid var(--border-color);
     border-radius: 16px;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
-/* Dynamic Grid Card Sizes */
-.grid-col-zoom-sm {
-    flex: 0 0 auto;
-    width: 12.5%; /* 8 per row on desktop */
+.glass-input {
+    background: var(--bg-input) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+    border-radius: 10px !important;
 }
 
-.grid-col-zoom-md {
-    flex: 0 0 auto;
-    width: 16.666667%; /* Default 6 per row */
+.glass-input:focus {
+    border-color: var(--accent-blue) !important;
+    box-shadow: 0 0 12px rgba(0, 136, 255, 0.3) !important;
 }
 
-.grid-col-zoom-lg {
-    flex: 0 0 auto;
-    width: 25%; /* 4 per row */
+/* App Layout Grid */
+.app-layout {
+    display: flex;
+    min-height: calc(100vh - 65px);
+}
+
+/* Left Sidebar Navigation */
+.app-sidebar {
+    width: var(--sidebar-width);
+    background-color: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    flex-shrink: 0;
+    padding: 20px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 12px;
+    font-weight: 500;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+.sidebar-link:hover {
+    color: var(--text-primary);
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-link.active {
+    color: #ffffff;
+    background-color: var(--accent-blue);
+    box-shadow: 0 4px 15px rgba(0, 136, 255, 0.3);
+}
+
+/* Main Content Area */
+.app-main-content {
+    flex-grow: 1;
+    padding: 25px;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Hero Featured Banner */
+.hero-banner {
+    position: relative;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #000;
+    height: 300px;
+    margin-bottom: 25px;
+    display: flex;
+    align-items: flex-end;
+    border: 1px solid var(--border-color);
+}
+
+.hero-banner img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.55;
+}
+
+.hero-content {
+    position: relative;
+    z-index: 2;
+    padding: 30px;
+    background: linear-gradient(to top, rgba(15,17,23,0.95) 20%, transparent 100%);
+    width: 100%;
+}
+
+.hero-badge {
+    background-color: rgba(0, 136, 255, 0.25);
+    border: 1px solid var(--accent-blue);
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   1. Premium Glossy / Metallic Set-Top Box IPTV Channel Card & Grid Architecture
+   ========================================================================== */
+
+.media-card {
+    /* 1. Card Architecture & Geometry */
+    aspect-ratio: 1 / 1;
+    border-radius: 18px;
+    border: 1px solid var(--border-metallic);
+    background: radial-gradient(circle at top center, #2d3042 0%, #151824 50%, #08090d 100%);
+
+    /* 3D Convex Glossy Outer Finish */
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3), 0 8px 18px rgba(0, 0, 0, 0.65);
+
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 12px;
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1),
+                border-color 0.3s ease,
+                box-shadow 0.3s ease;
+
+    /* Real-Time Floor Reflection */
+    -webkit-box-reflect: below 2px linear-gradient(transparent 75%, rgba(255, 255, 255, 0.08));
+}
+
+/* 3D Convex Metallic Glossy Highlight Overlay */
+.media-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 40%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 100%);
+    pointer-events: none;
+    border-radius: 18px 18px 0 0;
+    z-index: 1;
+}
+
+/* Interactive Hover / Focus State */
+.media-card:hover {
+    transform: scale(1.03) translateY(-6px);
+    border-color: var(--neon-blue);
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.5),
+                0 12px 28px rgba(0, 229, 255, 0.35),
+                0 0 15px rgba(0, 136, 255, 0.4);
+}
+
+/* 2. Inner Logo Frame & Branding */
+.media-poster-wrapper {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    border-radius: 12px;
+    background: radial-gradient(circle at center, #1f2330 0%, #08090d 100%);
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    overflow: hidden;
+}
+
+/* Logo Treatment */
+.media-poster {
+    max-width: 85%;
+    max-height: 85%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.7));
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.media-card:hover .media-poster {
+    transform: scale(1.08);
+}
+
+/* Card Body & Text Styling */
+.media-card-body {
+    position: relative;
+    z-index: 2;
+    padding-top: 8px;
+    text-align: center;
+}
+
+.media-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.3px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* 4. Layout & Responsive Grid Spacing */
+#content-grid {
+    --bs-gutter-x: 20px;
+    --bs-gutter-y: 25px;
+}
+
+/* Grid Zoom Sizes */
+.grid-col-zoom-sm { flex: 0 0 auto; width: 12.5%; }     /* 8 Columns */
+.grid-col-zoom-md { flex: 0 0 auto; width: 16.666667%; } /* 6 Columns */
+.grid-col-zoom-lg { flex: 0 0 auto; width: 25%; }        /* 4 Columns */
+
+@media (max-width: 1400px) {
+    .grid-col-zoom-sm { width: 16.666667%; }
+    .grid-col-zoom-md { width: 20%; }
+    .grid-col-zoom-lg { width: 25%; }
+}
+
+@media (max-width: 1200px) {
+    .grid-col-zoom-sm { width: 20%; }
+    .grid-col-zoom-md { width: 25%; }
+    .grid-col-zoom-lg { width: 33.333333%; }
 }
 
 @media (max-width: 992px) {
+    .app-sidebar { display: none; }
+    .mobile-bottom-nav { display: flex !important; }
+    .app-main-content { padding-bottom: 80px; }
     .grid-col-zoom-sm { width: 25%; }
     .grid-col-zoom-md { width: 33.333333%; }
     .grid-col-zoom-lg { width: 50%; }
 }
 
 @media (max-width: 576px) {
-    .grid-col-zoom-sm { width: 50%; }
-    .grid-col-zoom-md { width: 50%; }
-    .grid-col-zoom-lg { width: 100%; }
+    #content-grid {
+        --bs-gutter-x: 12px;
+        --bs-gutter-y: 18px;
+    }
+    .grid-col-zoom-sm, .grid-col-zoom-md, .grid-col-zoom-lg { width: 50%; }
+    .hero-banner { height: 210px; }
+    .hero-content { padding: 15px; }
+    .hero-content h3 { font-size: 1.2rem; }
+    .media-card {
+        border-radius: 14px;
+        -webkit-box-reflect: none; /* Disable reflections on small mobile screens for performance */
+    }
 }
 
-.glass-card {
-    background: var(--bg-glass-card);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--border-glass);
-    border-radius: 14px;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-.glass-card:hover {
-    transform: translateY(-4px);
-    border-color: var(--neon-blue);
-    box-shadow: 0 10px 25px rgba(0, 229, 255, 0.25);
-}
-
-.glass-input {
-    background: var(--bg-glass-input) !important;
-    border: 1px solid var(--border-glass) !important;
-    color: var(--text-primary) !important;
-    border-radius: 10px !important;
-}
-
-.glass-input:focus {
-    border-color: var(--neon-blue) !important;
-    box-shadow: 0 0 12px rgba(0, 229, 255, 0.4) !important;
-}
-
-.btn-neon-blue {
-    background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    font-weight: 600;
-    box-shadow: 0 0 15px rgba(0, 198, 255, 0.4);
-    transition: all 0.3s ease;
-}
-
-.btn-neon-blue:hover {
-    box-shadow: 0 0 25px rgba(0, 198, 255, 0.8);
-    transform: translateY(-2px);
-    color: #fff;
-}
-
-/* Bottom Dock Navigation Bar */
-.bottom-dock-nav {
+/* Mobile Bottom Dock */
+.mobile-bottom-nav {
+    display: none;
     position: fixed;
     bottom: 35px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(15, 22, 36, 0.9);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--border-glass);
-    border-radius: 25px;
-    padding: 8px 20px;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background-color: rgba(22, 24, 34, 0.95);
+    backdrop-filter: blur(15px);
+    border-top: 1px solid var(--border-color);
     z-index: 1040;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-    display: flex;
-    gap: 15px;
-}
-
-.dock-item {
-    color: var(--text-secondary);
-    padding: 8px 16px;
-    border-radius: 18px;
-    text-decoration: none;
-    font-size: 0.9rem;
-    font-weight: 500;
-    display: flex;
+    justify-content: space-around;
     align-items: center;
-    gap: 8px;
-    transition: all 0.25s ease;
 }
 
-.dock-item:hover, .dock-item.active {
-    background: rgba(0, 229, 255, 0.15);
-    color: var(--neon-blue);
-    box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
+.mobile-nav-item {
+    color: var(--text-secondary);
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 0.75rem;
+    gap: 3px;
 }
 
-/* News Ticker Bottom Bar */
+.mobile-nav-item.active {
+    color: var(--accent-blue);
+}
+
+/* News Ticker Bar */
 .news-ticker-bar {
     position: fixed;
     bottom: 0;
@@ -159,7 +359,7 @@ body {
 }
 
 .news-ticker-label {
-    background: linear-gradient(135deg, #00e5ff 0%, #7000ff 100%);
+    background: linear-gradient(135deg, #0088ff 0%, #7000ff 100%);
     color: #fff;
     padding: 0 15px;
     height: 100%;
@@ -167,7 +367,6 @@ body {
     align-items: center;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
     flex-shrink: 0;
 }
 
@@ -194,48 +393,7 @@ body {
     font-weight: 500;
 }
 
-.news-ticker-item.severity-info {
-    color: #00e5ff;
-}
-
-.news-ticker-item.severity-warning {
-    color: #ffc107;
-}
-
-.news-ticker-item.severity-alert {
-    color: #ff3366;
-}
-
 @keyframes marquee {
     0% { transform: translate3d(100%, 0, 0); }
     100% { transform: translate3d(-100%, 0, 0); }
-}
-
-/* Media Cards */
-.media-card {
-    background: var(--bg-glass-card);
-    border: 1px solid var(--border-glass);
-    border-radius: 12px;
-    overflow: hidden;
-    transition: transform 0.25s ease, border-color 0.25s ease;
-}
-
-.media-card:hover {
-    transform: translateY(-5px);
-    border-color: var(--neon-blue);
-}
-
-.media-poster-wrapper {
-    position: relative;
-    padding-top: 140%;
-    background: #000;
-}
-
-.media-poster {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
 }
