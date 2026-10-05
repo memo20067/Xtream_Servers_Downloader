@@ -41,6 +41,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (serverSelect) {
         serverSelect.addEventListener('change', (e) => {
             currentServerId = e.target.value;
+            if (searchInput) searchInput.value = '';
+            if (categorySelect) categorySelect.innerHTML = `<option value="" data-i18n="all_categories">${t('all_categories')}</option>`;
+            loadedItems = [];
+            filteredItems = [];
+            displayedCount = 0;
+
             updateTabVisibility();
             if (seriesDetailView) seriesDetailView.classList.add('d-none');
             contentGrid.classList.remove('d-none');
