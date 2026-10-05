@@ -103,6 +103,15 @@ function initializeDatabase() {
                 details TEXT DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS xtream_cache (
+                cache_key VARCHAR(191) PRIMARY KEY,
+                server_host VARCHAR(255) NOT NULL,
+                action VARCHAR(100) NOT NULL,
+                data TEXT NOT NULL,
+                expires_at DATETIME NOT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         ");
     } else {
         $db->exec("
@@ -195,6 +204,15 @@ function initializeDatabase() {
                 message TEXT NOT NULL,
                 details LONGTEXT DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS xtream_cache (
+                cache_key VARCHAR(191) PRIMARY KEY,
+                server_host VARCHAR(255) NOT NULL,
+                action VARCHAR(100) NOT NULL,
+                data LONGTEXT NOT NULL,
+                expires_at DATETIME NOT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             );
         ");
     }
