@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/xtream.php';
 require_once __DIR__ . '/../includes/m3u_parser.php';
 require_once __DIR__ . '/../includes/cache_helper.php';
+require_once __DIR__ . '/../includes/logger.php';
 
 if (!isLoggedIn()) {
     header('Content-Type: application/json');

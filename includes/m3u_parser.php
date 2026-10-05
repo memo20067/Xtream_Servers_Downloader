@@ -7,16 +7,28 @@ class M3UParser {
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 20,
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT => 60,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) XtreamIPTV/1.0'
         ]);
 
         $content = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
         curl_close($ch);
 
-        if ($httpCode !== 200 || empty($content)) {
+        if ($httpCode !== 200 || empty($content) || !empty($curlErr)) {
+            require_once __DIR__ . '/logger.php';
+            $errMsg = !empty($curlErr)
+                ? "cURL Error fetching M3U playlist: {$curlErr} (HTTP {$httpCode})"
+                : "Failed to fetch M3U playlist URL (HTTP {$httpCode}).";
+
+            Logger::log($errMsg, "ERROR", "m3u_fetch", $url, [
+                'url' => $url,
+                'http_code' => $httpCode,
+                'curl_error' => $curlErr
+            ]);
             return ['categories' => [], 'channels' => []];
         }
 
