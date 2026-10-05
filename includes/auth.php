@@ -31,6 +31,9 @@ function registerUser($username, $email, $phone, $password) {
 
     $userId = $db->lastInsertId();
 
+    // Regenerate session ID upon registration to prevent session fixation
+    session_regenerate_id(true);
+
     // Auto log in after registration
     $_SESSION['user_id'] = $userId;
     $_SESSION['username'] = $username;
@@ -55,6 +58,9 @@ function loginUser($usernameOrEmail, $password) {
     if (!$user || !password_verify($password, $user['password'])) {
         return ['success' => false, 'error' => 'Invalid credentials.'];
     }
+
+    // Regenerate session ID upon login to prevent session fixation
+    session_regenerate_id(true);
 
     $_SESSION['user_id'] = $user['id'];
     $_SESSION['username'] = $user['username'];

@@ -3,9 +3,9 @@
 
 require_once __DIR__ . '/../config/db.php';
 
-// If already installed and step is not reset, prevent running installer
-if (getSetting('installed', '0') === '1') {
-    die('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Already Installed</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head><body class="bg-dark text-light d-flex align-items-center vh-100"><div class="container text-center"><div class="card bg-secondary text-white p-5 mx-auto" style="max-width:500px;"><h3>Application Already Installed!</h3><p class="mt-3">The application has already been set up. To reinstall, reset the database or update the settings table.</p><a href="../index.php" class="btn btn-primary mt-2">Go to Dashboard</a></div></div></body></html>');
+$lockFile = __DIR__ . '/install.lock';
+if (file_exists($lockFile) || getSetting('installed', '0') === '1') {
+    die('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Installer Locked</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head><body class="bg-dark text-light d-flex align-items-center vh-100"><div class="container text-center"><div class="card bg-secondary text-white p-5 mx-auto" style="max-width:550px;"><h3>Installer Locked / Already Installed</h3><p class="mt-3">The application is already installed and protected by <code>install.lock</code>.<br>For security, please remove or delete the <code>/install/</code> directory from your server.</p><a href="../index.php" class="btn btn-primary mt-2">Go to Dashboard</a></div></div></body></html>');
 }
 
 session_start();
@@ -39,12 +39,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $testPdo = new PDO($dsnDb, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
             } else {
                 $dbDir = __DIR__ . '/../data';
-                if (!is_dir($dbDir)) mkdir($dbDir, 0777, true);
+                if (!is_dir($dbDir)) @mkdir($dbDir, 0755, true);
                 $sqliteFile = $dbDir . '/database.sqlite';
                 $testPdo = new PDO("sqlite:" . $sqliteFile);
             }
 
-            // Save config file config/db_config.php
+            // Save config file config/db_config.php with secure 0644 permissions
+            $configFile = __DIR__ . '/../config/db_config.php';
             $configContent = "<?php\nreturn " . var_export([
                 'db_type'   => $dbType,
                 'db_host'   => $dbHost,
@@ -55,7 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'db_prefix' => $dbPrefix
             ], true) . ";\n";
 
-            file_put_contents(__DIR__ . '/../config/db_config.php', $configContent);
+            file_put_contents($configFile, $configContent);
+            @chmod($configFile, 0644);
 
             // Initialize DB tables
             require_once __DIR__ . '/../config/init.php';
@@ -86,9 +88,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'step3_cache') {
         $cacheDir = __DIR__ . '/../cache/images/';
         if (!is_dir($cacheDir)) {
-            @mkdir($cacheDir, 0777, true);
+            @mkdir($cacheDir, 0755, true);
         }
-        @chmod($cacheDir, 0777);
+        @chmod($cacheDir, 0755);
+
+        $avatarDir = __DIR__ . '/../uploads/avatars/';
+        if (!is_dir($avatarDir)) {
+            @mkdir($avatarDir, 0755, true);
+        }
+        @chmod($avatarDir, 0755);
 
         header("Location: index.php?step=4");
         exit;
@@ -121,8 +129,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } elseif ($action === 'step5_finish') {
-        // Run initial sync check or set status
         setSetting('installed', '1');
+        // Create installation lock file for security
+        file_put_contents(__DIR__ . '/install.lock', date('Y-m-d H:i:s'));
         header("Location: ../login.php");
         exit;
     }
