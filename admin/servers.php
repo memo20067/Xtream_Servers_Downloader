@@ -30,10 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $host = trim($_POST['host'] ?? '');
         $username = trim($_POST['username'] ?? '');
         $password = trim($_POST['password'] ?? '');
+        $m3u_url = trim($_POST['m3u_url'] ?? '');
 
         if ($id > 0 && !empty($name) && !empty($host) && !empty($username) && !empty($password)) {
-            $stmt = $db->prepare("UPDATE servers SET name = ?, host = ?, username = ?, password = ? WHERE id = ? AND user_id IS NULL");
-            $stmt->execute([$name, $host, $username, $password, $id]);
+            $stmt = $db->prepare("UPDATE servers SET name = ?, host = ?, username = ?, password = ?, m3u_url = ? WHERE id = ? AND user_id IS NULL");
+            $stmt->execute([$name, $host, $username, $password, $m3u_url, $id]);
             $msg = 'Global Xtream server updated successfully!';
         } else {
             $error = 'All fields are required.';

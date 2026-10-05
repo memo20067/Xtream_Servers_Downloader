@@ -231,6 +231,14 @@ function initializeDatabase() {
             $stmtInsert->execute($plan);
         }
     }
+
+    // Ensure a default global M3U playlist exists if table is empty
+    $stmtM3u = $db->query("SELECT COUNT(*) as cnt FROM m3u_playlists");
+    $countM3u = $stmtM3u->fetch()['cnt'];
+    if ($countM3u == 0) {
+        $stmtInsM3u = $db->prepare("INSERT INTO m3u_playlists (user_id, name, url) VALUES (NULL, ?, ?)");
+        $stmtInsM3u->execute(['Global Free IPTV Playlist', 'https://iptv-org.github.io/iptv/index.m3u']);
+    }
 }
 
 // Start session if not started
