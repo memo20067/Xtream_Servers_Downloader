@@ -10,7 +10,10 @@ class M3UParser {
             CURLOPT_CONNECTTIMEOUT => 15,
             CURLOPT_TIMEOUT => 60,
             CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) XtreamIPTV/1.0'
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_USERAGENT => 'IPTVSmartersPro/3.0 (Windows NT 10.0; Win64; x64)'
         ]);
 
         $content = curl_exec($ch);
@@ -29,7 +32,7 @@ class M3UParser {
                 'http_code' => $httpCode,
                 'curl_error' => $curlErr
             ]);
-            return ['categories' => [], 'channels' => []];
+            return ['error' => $errMsg, 'categories' => [], 'channels' => []];
         }
 
         return self::parseContent($content);
