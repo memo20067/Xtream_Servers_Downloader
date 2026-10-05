@@ -196,6 +196,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch(`api/proxy.php?action=get_m3u_content&m3u_id=${m3uId}`);
                 const data = await res.json();
 
+                if (data.error) {
+                    contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-danger"><i class="bi bi-exclamation-triangle-fill me-2 fs-3"></i><br>${data.error}</div>`;
+                    return;
+                }
+
                 categorySelect.innerHTML = `<option value="" data-i18n="all_categories">${t('all_categories')}</option>`;
                 if (data.categories && Array.isArray(data.categories)) {
                     data.categories.forEach(cat => {
@@ -268,7 +273,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(url);
             const data = await res.json();
 
-            if (Array.isArray(data)) {
+            if (data.error) {
+                loadedItems = [];
+                contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-danger"><i class="bi bi-exclamation-triangle-fill me-2 fs-3"></i><br>${data.error}</div>`;
+            } else if (Array.isArray(data) && data.length > 0) {
                 loadedItems = data;
                 filterAndRenderItems();
             } else {

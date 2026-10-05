@@ -40,8 +40,10 @@ class XtreamAPI {
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_TIMEOUT => 30,
             CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) XtreamIPTV/1.0'
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_USERAGENT => 'IPTVSmartersPro/3.0 (Windows NT 10.0; Win64; x64)'
         ]);
 
         $response = curl_exec($ch);

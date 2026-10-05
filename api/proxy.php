@@ -110,7 +110,7 @@ switch ($action) {
             echo json_encode($cached['data']);
         } else {
             $res = $api->getLiveCategories();
-            if (is_array($res) && !empty($res)) {
+            if (is_array($res) && !empty($res) && !isset($res['error'])) {
                 CacheHelper::setCachedPlaylist($serverId, 'live_categories', $res);
             }
             echo json_encode($res);
@@ -130,7 +130,7 @@ switch ($action) {
             echo json_encode($data);
         } else {
             $res = $api->getLiveStreams();
-            if (is_array($res) && !empty($res)) {
+            if (is_array($res) && !empty($res) && !isset($res['error'])) {
                 CacheHelper::setCachedPlaylist($serverId, 'live_streams', $res);
                 if ($categoryId !== null && $categoryId !== '') {
                     $res = array_values(array_filter($res, function($item) use ($categoryId) {
