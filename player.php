@@ -9,6 +9,16 @@ if (!isLoggedIn()) {
 
 $currentUser = getCurrentUser();
 
+<<<<<<< feat/installer-subscriptions-profile-8131710756592078168
+$serverId  = $_GET['server_id']  ?? null;
+$type      = $_GET['type']       ?? 'live'; // live, movie, series, m3u_direct
+$streamId  = $_GET['stream_id']   ?? null;
+$title     = $_GET['title']      ?? 'IPTV Stream';
+$icon      = $_GET['icon']       ?? '';
+$ext       = $_GET['ext']        ?? 'mp4';
+$seriesId  = $_GET['series_id']  ?? null;
+$directUrl = $_GET['direct_url'] ?? null;
+=======
 $serverId =$_GET['server_id'] ?? null;
 $type     =$_GET['type']      ?? 'live'; // live, movie, series
 $streamId =$_GET['stream_id']  ?? null;
@@ -17,6 +27,7 @@ $icon     =$_GET['icon']      ?? '';
 $ext      =$_GET['ext']       ?? 'mp4';
 $seriesId =$_GET['series_id'] ?? null;
 $streamUrl =$_GET['stream_url'] ?? null;
+>>>>>>> main
 
 // Determine text direction for RTL/LTR sidebar layout
 $lang =$_SESSION['lang'] ?? 'ar';
@@ -159,8 +170,12 @@ $isRtl = ($lang === 'ar');
     const streamId = <?= json_encode($streamId) ?>;
     const seriesId = <?= json_encode($seriesId) ?>;
     const ext = <?= json_encode($ext) ?>;
+<<<<<<< feat/installer-subscriptions-profile-8131710756592078168
+    const directUrl = <?= json_encode($directUrl) ?>;
+=======
     let initialStreamUrl = <?= json_encode($streamUrl) ?>;
     let currentActiveStream = initialStreamUrl;
+>>>>>>> main
 
     // تم تعطيل fluid وتفعيل responsive لمنع الارتفاعات والمساحات الوهمية بالشرائح
     const player = videojs('iptv-player', {
@@ -195,6 +210,13 @@ $isRtl = ($lang === 'ar');
     }
 
     async function loadStream(id, type, extension = 'mp4') {
+        if (type === 'm3u_direct' && directUrl) {
+            const mimeType = (directUrl.includes('.m3u8') || directUrl.includes('.m3u')) ? 'application/x-mpegURL' : 'video/mp4';
+            player.src({ src: directUrl, type: mimeType });
+            player.play();
+            return;
+        }
+
         let url = `api/proxy.php?server_id=${serverId}&action=get_stream_url&type=${type}&stream_id=${id}&container_extension=${extension}`;
         try {
             const res = await fetch(url);
@@ -207,8 +229,13 @@ $isRtl = ($lang === 'ar');
         }
     }
 
+<<<<<<< feat/installer-subscriptions-profile-8131710756592078168
+    if (streamType === 'm3u_direct' && directUrl) {
+        loadStream(null, 'm3u_direct');
+=======
     if (initialStreamUrl) {
         playUrl(initialStreamUrl, streamType);
+>>>>>>> main
     } else if (streamId && streamType !== 'series') {
         loadStream(streamId, streamType, ext);
     }
