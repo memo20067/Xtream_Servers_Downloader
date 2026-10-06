@@ -154,8 +154,9 @@ $isRtl = ($lang === 'ar');
 
     async function loadStream(id, type, extension = 'mp4') {
         if (type === 'm3u_direct' && directUrl) {
+            const proxyUrl = `api/stream.php?url=${encodeURIComponent(btoa(directUrl))}`;
             const mimeType = (directUrl.includes('.m3u8') || directUrl.includes('.m3u')) ? 'application/x-mpegURL' : 'video/mp4';
-            player.src({ src: directUrl, type: mimeType });
+            player.src({ src: proxyUrl, type: mimeType });
             player.play();
             return;
         }

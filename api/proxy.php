@@ -266,17 +266,10 @@ switch ($action) {
             exit;
         }
         
-        if ($type === 'live') {
-            $url = $api->getLiveStreamUrl($streamId, 'm3u8');
-        } elseif ($type === 'movie' || $type === 'vod') {
-            $url = $api->getVodStreamUrl($streamId, $ext);
-        } elseif ($type === 'series') {
-            $url = $api->getSeriesStreamUrl($streamId, $ext);
-        } else {
-            $url = $api->getLiveStreamUrl($streamId, 'm3u8');
-        }
+        // Return local proxy URL pointing to api/stream.php so the upstream server sees only 1 server IP
+        $localProxyUrl = "api/stream.php?server_id=" . urlencode($serverId) . "&type=" . urlencode($type) . "&stream_id=" . urlencode($streamId) . "&ext=" . urlencode($ext);
 
-        echo json_encode(['stream_url' => $url]);
+        echo json_encode(['stream_url' => $localProxyUrl]);
         break;
 
     case 'download_stream':
