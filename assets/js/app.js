@@ -436,7 +436,11 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const directUrl = decodeURIComponent(btn.getAttribute('data-url'));
-                playDirectUrl(directUrl);
+                const card = btn.closest('.media-card');
+                const title = card ? card.querySelector('.media-title').getAttribute('title') : 'IPTV Stream';
+                const icon = card ? card.querySelector('.media-poster').getAttribute('src') : '';
+
+                window.location.href = `player.php?type=m3u_direct&direct_url=${encodeURIComponent(directUrl)}&title=${encodeURIComponent(title)}&icon=${encodeURIComponent(icon)}`;
             });
         });
 
