@@ -9,17 +9,17 @@ if (!isLoggedIn()) {
 
 $currentUser = getCurrentUser();
 
-$serverId = $_GET['server_id'] ?? null;
-$type     = $_GET['type']      ?? 'live'; // live, movie, series
-$streamId = $_GET['stream_id']  ?? null;
-$title    = $_GET['title']     ?? 'IPTV Stream';
-$icon     = $_GET['icon']      ?? '';
-$ext      = $_GET['ext']       ?? 'mp4';
-$seriesId = $_GET['series_id'] ?? null;
-$streamUrl = $_GET['stream_url'] ?? null;
+$serverId =$_GET['server_id'] ?? null;
+$type     =$_GET['type']      ?? 'live'; // live, movie, series
+$streamId =$_GET['stream_id']  ?? null;
+$title    =$_GET['title']     ?? 'IPTV Stream';
+$icon     =$_GET['icon']      ?? '';
+$ext      =$_GET['ext']       ?? 'mp4';
+$seriesId =$_GET['series_id'] ?? null;
+$streamUrl =$_GET['stream_url'] ?? null;
 
 // Determine text direction for RTL/LTR sidebar layout
-$lang = $_SESSION['lang'] ?? 'ar';
+$lang =$_SESSION['lang'] ?? 'ar';
 $isRtl = ($lang === 'ar');
 ?>
 <!DOCTYPE html>
@@ -42,6 +42,22 @@ $isRtl = ($lang === 'ar');
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="assets/css/style.css">
+    
+    <style>
+        /* إزالة الفراغات الزائدة وتطبيق ملاءمة دقيقة للمشغل */
+        .video-js-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        .video-js {
+            width: 100% !important;
+            height: 100% !important;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+    </style>
 </head>
 <body class="bg-dark text-light">
 
@@ -63,8 +79,8 @@ $isRtl = ($lang === 'ar');
         <!-- Main Video Player & Channel Info Area -->
         <div class="<?= $type === 'series' ? 'col-lg-8 col-xl-9' : 'col-12' ?>">
             <div class="glass-panel p-3 mb-4">
-                <div class="ratio ratio-16x9 rounded overflow-hidden shadow">
-                    <video id="iptv-player" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" width="100%" height="100%">
+                <div class="ratio ratio-16x9 rounded overflow-hidden shadow video-js-wrapper">
+                    <video id="iptv-player" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto">
                     </video>
                 </div>
             </div>
@@ -146,11 +162,13 @@ $isRtl = ($lang === 'ar');
     let initialStreamUrl = <?= json_encode($streamUrl) ?>;
     let currentActiveStream = initialStreamUrl;
 
+    // تم تعطيل fluid وتفعيل responsive لمنع الارتفاعات والمساحات الوهمية بالشرائح
     const player = videojs('iptv-player', {
         controls: true,
         autoplay: true,
         preload: 'auto',
-        fluid: true
+        fluid: false,
+        responsive: true
     });
 
     // Auto-fallback to stream_proxy on playback/CORS errors
