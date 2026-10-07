@@ -2,9 +2,54 @@
 // index.php - Main IPTV Dashboard & Video Player Page
 require_once __DIR__ . '/includes/auth.php';
 
+require_once __DIR__ . '/../config/db.php';
+
+$lockFile = __DIR__ . '/install.lock';
+$isLocked = file_exists($lockFile);
+$isInstalledSetting = getSetting('installed', '0') === '1';
+
+// Check if database tables actually exist (not just install.lock)
+function databaseTablesExist() {
+    try {
+        $db = getDBConnection();
+        $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+        if ($driver === 'sqlite') {
+            $stmt = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
+            return (bool)$stmt->fetch();
+        } else {
+            $stmt = $db->query("SHOW TABLES LIKE 'users'");
+            return (bool)$stmt->fetch();
+        }
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+$hasDbTables = databaseTablesExist();
+
+// Determine if installer should be locked:
+// - Locked if BOTH install.lock exists AND database tables exist (real installation)
+// - NOT locked if install.lock exists but database is empty (deleted DB scenario)
+// - NOT locked if install.lock exists but tables don't exist (fresh install after deletion)
+$shouldLock = ($isLocked || $isInstalledSetting) && $hasDbTables;
+
+// Allow manual reset via ?reset=1 parameter when database is actually empty
+$resetRequested = isset($_GET['reset']) && (int)$_GET['reset'] === 1;
+
+if ($shouldLock && !$resetRequested) {
+    die('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Installer Locked</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head><body class="bg-dark text-light d-flex align-items-center vh-100"><div class="container text-center"><div class="card bg-secondary text-white p-5 mx-auto" style="max-width:650px;"><h3>Installer Locked / Already Installed</h3><p class="mt-3">The application is already installed and protected by <code>install.lock</code>.<br>For security, please remove or delete the <code>/install/</code> directory from your server.</p><a href="../index.php" class="btn btn-primary mt-2">Go to Dashboard</a></div></div></body></html>');
+}
+
+// If reset requested and DB tables exist, require confirmation
+if ($resetRequested && $hasDbTables) {
+    die('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Reset Confirmation</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head><body class="bg-dark text-light d-flex align-items-center vh-100"><div class="container text-center"><div class="card bg-danger text-white p-5 mx-auto" style="max-width:650px;"><h3>⚠️ Database Reset Required</h3><p class="mt-3">The installer detected that <code>install.lock</code> exists AND the database contains tables.<br>To perform a fresh installation, you must manually drop all database tables or delete the database entirely.</p><p class="small">After dropping the database, refresh this page or remove <code>install.lock</code> to proceed.</p><a href="?reset=1" class="btn btn-light mt-2">I have dropped the database - Refresh</a></div></div></body></html>');
+}
+
 if (!isLoggedIn()) {
     header("Location: login.php");
     exit;
+}
 }
 
 $currentUser = getCurrentUser();

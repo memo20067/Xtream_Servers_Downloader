@@ -376,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderBatch(items) {
         items.forEach(item => {
             const col = document.createElement('div');
-            col.className = `col-6 col-sm-4 ${currentZoomClass}`;
+            col.className = `col-6 col-sm-4 ${getZoomClass(currentZoomLevel)}`;
             col.className = `col-6 col-sm-4 ${getZoomClass(currentZoomLevel)}`;
 
             const title = item.name || item.title || 'Untitled';
