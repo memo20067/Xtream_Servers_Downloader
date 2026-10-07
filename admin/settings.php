@@ -31,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     setSetting('pay_crypto_usdt',trim($_POST['pay_crypto_usdt']??''));
     setSetting('pay_currency',  trim($_POST['pay_currency']  ?? 'USD'));
     setSetting('pay_instructions', trim($_POST['pay_instructions'] ?? ''));
+    setSetting('cron_secret', trim($_POST['cron_secret'] ?? ''));
 
     $msg = 'Settings updated successfully!';
 }
@@ -170,6 +171,14 @@ $payInstructions = getSetting('pay_instructions', '');
                         <label class="form-label">Special Payment Instructions (shown to user)</label>
                         <textarea name="pay_instructions" class="form-control bg-dark text-white border-secondary" rows="3"
                                   placeholder="e.g. Send the exact amount, include your username in the note"><?= htmlspecialchars($payInstructions) ?></textarea>
+                    </div>
+                    <div class="col-12"><hr class="border-secondary my-3"></div>
+                    <h5 class="text-info mb-3"><i class="bi bi-clock-history me-2"></i>Cache & Cron Settings</h5>
+                    <div class="col-12">
+                        <label class="form-label">Cron Secret Key (for automated cache refresh)</label>
+                        <input type="text" name="cron_secret" class="form-control bg-dark text-white border-secondary"
+                               placeholder="Enter a secure random string" value="<?= htmlspecialchars(getSetting('cron_secret', '')) ?>">
+                        <div class="form-text text-muted">Used to secure the cache refresh cron endpoint: cron/refresh_cache.php?cron_secret=YOUR_SECRET</div>
                     </div>
                 </div>
             </div>
