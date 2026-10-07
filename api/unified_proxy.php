@@ -11,6 +11,11 @@ require_once __DIR__ . '/../includes/m3u_parser.php';
 require_once __DIR__ . '/../includes/cache_helper.php';
 require_once __DIR__ . '/../includes/logger.php';
 
+$scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/api/unified_proxy.php');
+$appRoot = dirname(dirname($scriptName));
+$appRoot = ($appRoot === '.' || $appRoot === '/') ? '' : '/' . trim($appRoot, '/');
+$proxyEndpointPath = $appRoot . '/api/unified_proxy.php';
+
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
@@ -92,7 +97,7 @@ if ($action === 'stream_proxy') {
             $trimmed = trim($line);
             if (!empty($trimmed) && strpos($trimmed, '#') !== 0) {
                 $resolvedUrl = M3UParser::resolveRelativeUrl($effectiveUrl, $trimmed);
-                $output[] = 'api/unified_proxy.php?action=stream_proxy&server_id=' . urlencode($serverId) . '&url=' . rawurlencode($resolvedUrl);
+                $output[] = $proxyEndpointPath . '?action=stream_proxy&server_id=' . urlencode($serverId) . '&url=' . rawurlencode($resolvedUrl);
             } else {
                 $output[] = $line;
             }
@@ -287,8 +292,7 @@ switch ($action) {
             exit;
         }
 
-        // Return proxied stream URL instead of raw Xtream URL
-        $proxyBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+        // Return a same-origin proxy path instead of exposing the source URL.
         $streamUrl = '';
 
         if ($type === 'live') {
@@ -303,88 +307,142 @@ switch ($action) {
 
         // Route through unified proxy so credentials are never exposed
         echo json_encode([
-            'stream_url' => $proxyBase . '/api/unified_proxy.php?action=stream_proxy&server_id=' . urlencode($serverId) . '&url=' . rawurlencode($streamUrl)
+            'stream_url' => $proxyEndpointPath . '?action=stream_proxy&server_id=' . urlencode($serverId) . '&url=' . rawurlencode($streamUrl)
         ]);
         break;
 
     case 'download_stream':
+        header('Content-Type: application/json; charset=utf-8');
         if (!hasPaidSubscription()) {
-            header('Content-Type: application/json');
             http_response_code(403);
-            echo json_encode(['error' => 'Download permission denied. Active paid subscription required.']);
+            echo json_encode(['error' => 'A paid subscription is required to download this file.']);
             exit;
         }
 
         $type = $_GET['type'] ?? 'movie';
-        $title = $_GET['title'] ?? ($type === 'series' ? 'Episode' : 'Movie');
-        $resolution = $_GET['resolution'] ?? '1080p';
+        $title = trim((string)($_GET['title'] ?? ($type === 'series' ? 'Episode' : 'Movie')));
+        $resolution = $_GET['resolution'] ?? 'source';
+        $fileExt = $_GET['container_extension'] ?? 'mp4';
+        $fileExt = preg_match('/^[a-z0-9]{1,8}$/i', $fileExt) ? strtolower($fileExt) : 'mp4';
 
-        $cleanTitle = preg_replace('/[^A-Za-z0-9_\-\. ]/', '', $title);
-        if (empty($cleanTitle)) {
-            $cleanTitle = 'video';
+        if (!in_array($type, ['movie', 'vod', 'series'], true)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Only movies and series episodes can be downloaded.']);
+            exit;
         }
-
-        if (!$streamId) {
-            header('Content-Type: application/json');
-            echo json_encode(['error' => 'Stream ID required.']);
+        if ($resolution !== 'source') {
+            http_response_code(422);
+            echo json_encode(['error' => 'This source does not provide transcoding. Only the source file quality can be downloaded.']);
+            exit;
+        }
+        if ($streamId === null || $streamId === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'Stream ID is required.']);
             exit;
         }
 
-        $ext = 'mp4';
-        $rawUrl = '';
+        $safeTitle = preg_replace('/[^\pL\pN._ -]+/u', '', $title);
+        $safeTitle = trim((string)$safeTitle, " ._-\t\n\r\0\x0B");
+        if ($safeTitle === '') $safeTitle = 'video';
+        $safeTitle = substr($safeTitle, 0, 150);
+        $filename = $safeTitle . '.' . $fileExt;
 
-        if ($type === 'movie' || $type === 'vod') {
-            $rawUrl = $api->getVodStreamUrl($streamId, $ext);
-        } elseif ($type === 'series') {
-            $rawUrl = $api->getSeriesStreamUrl($streamId, $ext);
-        } else {
-            $rawUrl = $api->getLiveStreamUrl($streamId, 'mp4');
+        $rawUrl = ($type === 'series')
+            ? $api->getSeriesStreamUrl($streamId, $fileExt)
+            : $api->getVodStreamUrl($streamId, $fileExt);
+        if ($rawUrl === '') {
+            http_response_code(502);
+            echo json_encode(['error' => 'The source did not provide a download URL.']);
+            exit;
         }
 
-        // Proxy download through our server to hide credentials
-        $proxyBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
-        $downloadUrl = $proxyBase . '/api/unified_proxy.php?action=download_proxy&server_id=' . urlencode($serverId) . '&url=' . rawurlencode($rawUrl) . '&filename=' . rawurlencode($cleanTitle . '.mp4');
+        // Return an authorized local route. The source credentials are rebuilt server-side.
+        $downloadQuery = http_build_query([
+            'action' => 'download_proxy',
+            'server_id' => $serverId,
+            'type' => $type,
+            'stream_id' => $streamId,
+            'container_extension' => $fileExt,
+            'filename' => $filename
+        ]);
+        $downloadPath = $proxyEndpointPath . '?' . $downloadQuery;
 
-        header("Location: " . $downloadUrl);
+        if (isset($_GET['prepare']) && $_GET['prepare'] === '1') {
+            echo json_encode(['download_url' => $downloadPath, 'filename' => $filename], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        header('Location: ' . $downloadPath, true, 302);
         exit;
 
     case 'download_proxy':
-        // Internal download proxy endpoint
-        $downloadUrl = $_GET['url'] ?? '';
-        $filename = $_GET['filename'] ?? 'download.mp4';
-        if (empty($downloadUrl)) {
-            header('HTTP/1.1 400 Bad Request');
-            echo 'Missing download URL';
+        if (!hasPaidSubscription()) {
+            http_response_code(403);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'A paid subscription is required to download this file.';
             exit;
         }
 
+        // Never accept a caller-provided remote URL here: that would expose credentials and enable SSRF.
+        $downloadType = $_GET['type'] ?? '';
+        $downloadId = trim((string)($_GET['stream_id'] ?? ''));
+        $downloadExt = $_GET['container_extension'] ?? 'mp4';
+        $downloadExt = preg_match('/^[a-z0-9]{1,8}$/i', $downloadExt) ? strtolower($downloadExt) : 'mp4';
+        $filename = basename((string)($_GET['filename'] ?? 'download.' . $downloadExt));
+        if (!in_array($downloadType, ['movie', 'vod', 'series'], true) || $downloadId === '') {
+            http_response_code(400);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'A supported media item is required.';
+            exit;
+        }
+
+        $downloadUrl = $downloadType === 'series'
+            ? $api->getSeriesStreamUrl($downloadId, $downloadExt)
+            : $api->getVodStreamUrl($downloadId, $downloadExt);
+        $tempFile = tempnam(sys_get_temp_dir(), 'xtream-download-');
+        if ($tempFile === false) {
+            http_response_code(500);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'Could not prepare the download.';
+            exit;
+        }
+
+        $fileHandle = fopen($tempFile, 'wb');
         $ch = curl_init();
         curl_setopt_array($ch, [
-            CURLOPT_URL            => $downloadUrl,
-            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_URL => $downloadUrl,
+            CURLOPT_FILE => $fileHandle,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS      => 5,
-            CURLOPT_TIMEOUT        => 300,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_TIMEOUT => 300,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) XtreamGateway/1.0',
-            CURLOPT_ENCODING       => '',
+            CURLOPT_USERAGENT => 'Mozilla/5.0 XtreamGateway/1.0',
+            CURLOPT_ENCODING => ''
         ]);
-        $response = curl_exec($ch);
+        $success = curl_exec($ch);
         $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: 'video/mp4';
+        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: 'application/octet-stream';
+        $curlError = curl_error($ch);
         curl_close($ch);
+        fclose($fileHandle);
 
-        if ($httpCode === 200 && $response !== false) {
-            header('Content-Type: ' . $contentType);
-            header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
-            header('Content-Length: ' . strlen($response));
-            echo $response;
-        } else {
-            http_response_code($httpCode ?: 502);
-            echo "Download failed.";
+        if ($success !== true || $httpCode < 200 || $httpCode >= 300 || !is_file($tempFile) || filesize($tempFile) === 0) {
+            @unlink($tempFile);
+            http_response_code($httpCode >= 400 ? $httpCode : 502);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'The source could not provide this file. ' . ($curlError ? 'Please try again later.' : '');
+            exit;
         }
+
+        $asciiFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', $filename);
+        header('Content-Type: ' . $contentType);
+        header('Content-Length: ' . filesize($tempFile));
+        header('Content-Disposition: attachment; filename="' . $asciiFilename . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
+        header('X-Content-Type-Options: nosniff');
+        readfile($tempFile);
+        @unlink($tempFile);
         exit;
 
     default:

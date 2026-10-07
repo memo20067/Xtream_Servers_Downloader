@@ -97,11 +97,15 @@ $plans = $stmtPlans->fetchAll();
                 </thead>
                 <tbody>
                     <?php foreach ($users as $u): ?>
-                        <?php $avatarSrc = !empty($u['avatar']) ? '../' . htmlspecialchars($u['avatar']) : 'https://via.placeholder.com/40?text=U'; ?>
+                        <?php $avatarSrc = !empty($u['avatar']) ? '../' . htmlspecialchars($u['avatar'], ENT_QUOTES, 'UTF-8') : ''; ?>
                         <tr>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
-                                    <img src="<?= $avatarSrc ?>" class="rounded-circle" style="width:36px; height:36px; object-fit:cover;">
+                                    <?php if ($avatarSrc): ?>
+                                        <img src="<?= $avatarSrc ?>" alt="" class="rounded-circle" width="36" height="36" style="object-fit:cover;">
+                                    <?php else: ?>
+                                        <span class="admin-avatar-fallback rounded-circle d-inline-flex justify-content-center align-items-center" aria-hidden="true"><i class="bi bi-person"></i></span>
+                                    <?php endif; ?>
                                     <div>
                                         <div class="fw-bold"><?= htmlspecialchars($u['username']) ?></div>
                                         <small class="text-white-50">ID #<?= $u['id'] ?></small>

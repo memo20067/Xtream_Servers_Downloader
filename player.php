@@ -1,340 +1,171 @@
 <?php
-// player.php - Dedicated Video Player & Series Episode Page
+// player.php - Dedicated player, item details, episode list, and source-quality download.
 require_once __DIR__ . '/includes/auth.php';
 
 if (!isLoggedIn()) {
-    header("Location: login.php");
+    header('Location: login.php');
     exit;
 }
 
 $currentUser = getCurrentUser();
+$queryString = static function (string $key, string $fallback = ''): string {
+    $value = $_GET[$key] ?? $fallback;
+    return is_scalar($value) ? trim((string)$value) : $fallback;
+};
+$allowedTypes = ['live', 'movie', 'vod', 'series', 'm3u_direct'];
+$type = $queryString('type', 'live');
+$type = in_array($type, $allowedTypes, true) ? $type : 'live';
+$serverId = $queryString('server_id');
+$streamId = $queryString('stream_id');
+$seriesId = $queryString('series_id');
+$title = $queryString('title', 'IPTV Stream');
+$sourceName = $queryString('source_name', $serverId);
+$extension = $queryString('ext', 'mp4');
+$extension = preg_match('/^[a-z0-9]{1,8}$/i', $extension) ? $extension : 'mp4';
+$directKey = $queryString('direct_key');
+$directKey = preg_match('/^[a-z0-9-]{8,80}$/i', $directKey) ? $directKey : '';
+$icon = $queryString('icon');
+if (!preg_match('#^(https?://|/?(?:api/cache_image\.php|cache/images/))#i', $icon)) {
+    $icon = '';
+}
 
- $serverId  = $_GET['server_id']  ?? null;
- $type      = $_GET['type']       ?? 'live'; // live, movie, series, m3u_direct
- $streamId  = $_GET['stream_id']   ?? null;
- $title     = $_GET['title']      ?? 'IPTV Stream';
- $icon      = $_GET['icon']       ?? '';
- $ext       = $_GET['ext']        ?? 'mp4';
- $seriesId  = $_GET['series_id']  ?? null;
- $directUrl = $_GET['direct_url'] ?? null;
-
-// Determine text direction for RTL/LTR sidebar layout
-$lang =$_SESSION['lang'] ?? 'ar';
-$isRtl = ($lang === 'ar');
+$lang = $_COOKIE['app_lang'] ?? ($_SESSION['lang'] ?? 'ar');
+$lang = in_array($lang, ['ar', 'en'], true) ? $lang : 'ar';
+$isRtl = $lang === 'ar';
+$hasPaid = hasPaidSubscription();
+$displayTitle = $title !== '' ? $title : ($isRtl ? 'عنوان من المصدر' : 'Title from source');
+$typeLabels = [
+    'live' => $isRtl ? 'قناة مباشرة' : 'Live channel',
+    'movie' => $isRtl ? 'فيلم' : 'Movie',
+    'vod' => $isRtl ? 'فيلم' : 'Movie',
+    'series' => $isRtl ? 'مسلسل' : 'Series',
+    'm3u_direct' => $isRtl ? 'بث مباشر' : 'Live stream'
+];
+$backParams = [];
+foreach (['source', 'tab', 'q', 'category'] as $key) {
+    if (isset($_GET['back_' . $key]) && is_scalar($_GET['back_' . $key])) {
+        $backParams[$key] = (string)$_GET['back_' . $key];
+    }
+}
+$backHref = 'index.php' . ($backParams ? '?' . http_build_query($backParams) : '');
+$appName = getSetting('app_name', 'Xtream IPTV Player');
 ?>
 <!DOCTYPE html>
-<html lang="<?= $lang ?>" dir="<?= $isRtl ? 'rtl' : 'ltr' ?>">
+<html lang="<?= htmlspecialchars($lang, ENT_QUOTES, 'UTF-8') ?>" dir="<?= $isRtl ? 'rtl' : 'ltr' ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($title) ?> - Xtream IPTV Player</title>
-
-    <!-- Bootstrap CSS & Icons -->
-    <?php if ($isRtl): ?>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <?php else: ?>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <?php endif; ?>
+    <title><?= htmlspecialchars($displayTitle, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap<?= $isRtl ? '.rtl' : '' ?>.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-
-    <!-- Video.js CSS -->
-    <link href="https://vjs.zencdn.net/8.3.0/video-js.css" rel="stylesheet" />
-
-    <!-- Custom CSS -->
+    <link rel="stylesheet" href="https://vjs.zencdn.net/8.3.0/video-js.css">
     <link rel="stylesheet" href="assets/css/style.css">
-    
-    <style>
-        /* إزالة الفراغات الزائدة وتطبيق ملاءمة دقيقة للمشغل */
-        .video-js-wrapper {
-            position: relative;
-            width: 100%;
-            height: 100%;
-        }
-        .video-js {
-            width: 100% !important;
-            height: 100% !important;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-    </style>
 </head>
-<body class="bg-dark text-light">
+<body class="player-page">
+<header class="catalog-topbar">
+    <div class="container-fluid d-flex align-items-center justify-content-between gap-3 px-3 px-lg-5 py-3">
+        <div class="d-flex align-items-center gap-3 min-w-0">
+            <a class="auth-brand text-decoration-none d-flex align-items-center" href="index.php" aria-label="<?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>">
+                <span class="auth-brand-mark">X</span><span class="d-none d-sm-inline"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></span>
+            </a>
+            <span class="text-muted small d-none d-md-inline" aria-hidden="true">/</span>
+            <span class="small text-secondary text-truncate d-none d-md-inline"><?= $isRtl ? 'المشغّل' : 'Player' ?></span>
+        </div>
+        <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars($backHref, ENT_QUOTES, 'UTF-8') ?>"><i class="bi bi-arrow-right me-2" aria-hidden="true"></i><?= $isRtl ? 'العودة إلى نتائج المصدر' : 'Back to source results' ?></a>
+    </div>
+</header>
 
-<!-- Top Navigation -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-secondary px-4 shadow-sm sticky-top">
-    <div class="container-fluid">
-        <a class="navbar-brand fw-bold text-primary" href="index.php">
-            <i class="bi bi-arrow-left-circle me-2"></i><?= $isRtl ? 'العودة للقائمة الرئيسية' : 'Back to Dashboard' ?>
-        </a>
+<main class="player-main">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
         <div class="d-flex align-items-center gap-3">
-            <span class="navbar-text text-white fw-bold"><?= htmlspecialchars($title) ?></span>
+            <span class="d-inline-flex justify-content-center align-items-center border border-secondary rounded p-2"><i class="bi <?= $type === 'series' ? 'bi-collection-play' : ($type === 'movie' || $type === 'vod' ? 'bi-film' : 'bi-broadcast') ?>" aria-hidden="true"></i></span>
+            <div><div class="fw-semibold"><?= htmlspecialchars($typeLabels[$type], ENT_QUOTES, 'UTF-8') ?></div><div class="small text-muted"><?= $isRtl ? 'المصدر المحدد' : 'Selected source' ?> · <?= htmlspecialchars($sourceName, ENT_QUOTES, 'UTF-8') ?></div></div>
         </div>
+        <span id="player-status" class="small text-secondary" role="status" aria-live="polite"><?= $isRtl ? 'جارٍ تجهيز التشغيل…' : 'Preparing playback…' ?></span>
     </div>
-</nav>
 
-<!-- Player Layout Container -->
-<div class="container-fluid px-4 py-4">
-    <div class="row g-4">
-        <!-- Main Video Player & Channel Info Area -->
-        <div class="<?= $type === 'series' ? 'col-lg-8 col-xl-9' : 'col-12' ?>">
-            <div class="glass-panel p-3 mb-4">
-                <div class="ratio ratio-16x9 rounded overflow-hidden shadow video-js-wrapper">
-                    <video id="iptv-player" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto">
-                    </video>
-                </div>
-            </div>
+    <section class="player-frame ratio ratio-16x9" aria-label="<?= $isRtl ? 'مشغل الفيديو' : 'Video player' ?>" dir="ltr">
+        <video id="iptv-player" class="video-js vjs-default-skin vjs-big-play-centered" controls playsinline preload="auto" aria-label="<?= htmlspecialchars($displayTitle, ENT_QUOTES, 'UTF-8') ?>"></video>
+        <div id="player-feedback" class="d-none position-absolute z-2 top-50 start-50 translate-middle text-center p-3 bg-black bg-opacity-75 rounded" dir="rtl" role="alert">
+            <i class="bi bi-exclamation-circle text-primary fs-2" aria-hidden="true"></i>
+            <p id="player-feedback-message" class="text-white mt-2 mb-3"></p>
+            <button id="retry-playback" type="button" class="btn btn-primary btn-sm"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i><?= $isRtl ? 'إعادة محاولة التشغيل' : 'Retry playback' ?></button>
+        </div>
+    </section>
 
-            <!-- Title & Channel/Movie Metadata Box below Player -->
-            <div class="glass-panel p-4 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
-                <div class="d-flex align-items-center gap-3">
-                    <?php if (!empty($icon)): ?>
-                        <img src="<?= htmlspecialchars($icon) ?>" alt="Logo" class="rounded img-thumbnail bg-dark" style="width: 70px; height: 70px; object-fit: cover;">
-                    <?php else: ?>
-                        <div class="rounded bg-secondary d-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
-                            <i class="bi bi-tv fs-2 text-info"></i>
-                        </div>
-                    <?php endif; ?>
-                    <div>
-                        <h4 class="fw-bold mb-1" id="current-stream-title"><?= htmlspecialchars($title) ?></h4>
-                        <small class="text-white-50"><i class="bi bi-tag-fill me-1 text-primary"></i>Type: <?= strtoupper(htmlspecialchars($type)) ?></small>
-                    </div>
-                </div>
+    <div id="download-status" class="alert alert-secondary d-none mt-3" role="status" aria-live="polite"></div>
 
-                <!-- Download Button for Movies -->
-                <?php if ($type === 'movie' || $type === 'vod'): ?>
-                    <div>
-                        <?php if (hasPaidSubscription()): ?>
-                            <button class="btn btn-neon-blue btn-lg px-4 trigger-download-btn" data-id="<?= htmlspecialchars($streamId) ?>" data-type="movie" data-title="<?= htmlspecialchars($title) ?>" data-ext="<?= htmlspecialchars($ext) ?>">
-                                <i class="bi bi-download me-2"></i><?= $isRtl ? 'تحميل الفيلم' : 'Download Movie' ?>
-                            </button>
-                        <?php else: ?>
-                            <button class="btn btn-outline-secondary btn-lg px-4 disabled" disabled>
-                                <i class="bi bi-lock-fill me-2"></i><?= $isRtl ? 'التحميل يتطلب اشتراك مدفوع' : 'Download Requires Paid Subscription' ?>
-                            </button>
-                        <?php endif; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-
-            <!-- EPG Program Guide / Overview Section directly below Metadata Box -->
-            <div class="glass-panel p-4">
-                <h5 class="fw-bold mb-3 text-info border-bottom border-secondary pb-2">
-                    <i class="bi bi-calendar2-week me-2"></i><?= $isRtl ? 'جدول البرامج والدليل الإلكتروني (EPG)' : 'Electronic Program Guide (EPG)' ?>
-                </h5>
-                <div id="epg-container">
-                    <div class="text-center py-3 text-white-50">
-                        <div class="spinner-border spinner-border-sm text-info me-2" role="status"></div>
-                        <small><?= $isRtl ? 'جاري جلب الدليل الإلكتروني للبرامج...' : 'Loading EPG guide...' ?></small>
-                    </div>
-                </div>
+    <section class="player-info-section d-flex flex-wrap justify-content-between align-items-start gap-4">
+        <div class="d-flex align-items-start gap-3 min-w-0">
+            <?php if ($icon !== ''): ?><img src="<?= htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') ?>" alt="" class="rounded" width="64" height="80" style="object-fit:cover"><?php endif; ?>
+            <div class="min-w-0">
+                <h1 id="current-stream-title" class="h3 fw-bold mb-2 text-break"><?= htmlspecialchars($displayTitle, ENT_QUOTES, 'UTF-8') ?></h1>
+                <div class="small text-secondary d-flex flex-wrap align-items-center gap-2"><span><?= htmlspecialchars($typeLabels[$type], ENT_QUOTES, 'UTF-8') ?></span><span aria-hidden="true">·</span><span><?= $isRtl ? 'المحتوى من المصدر الذي اخترته' : 'Content from the selected source' ?></span></div>
             </div>
         </div>
-
-        <!-- Vertical Series Episodes Sidebar (Displayed on Right for RTL, Left for LTR if Series) -->
-        <?php if ($type === 'series'): ?>
-            <div class="col-lg-4 col-xl-3">
-                <div class="glass-panel p-3 h-100">
-                    <h5 class="fw-bold mb-3 border-bottom border-secondary pb-2">
-                        <i class="bi bi-collection-play me-2 text-info"></i><?= $isRtl ? 'قائمة الحلقات' : 'Episodes List' ?>
-                    </h5>
-                    <div id="series-episodes-list" class="overflow-y-auto" style="max-height: 650px;">
-                        <div class="text-center py-4">
-                            <div class="spinner-border text-info" role="status"></div>
-                            <p class="mt-2 text-white-50 small"><?= $isRtl ? 'جاري تحميل الحلقات...' : 'Loading episodes...' ?></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <?php if (in_array($type, ['movie', 'vod'], true)): ?>
+            <?php if ($hasPaid && $streamId !== '' && strpos($serverId, 'm3u_') !== 0): ?>
+                <button type="button" class="btn btn-primary trigger-download-btn" data-id="<?= htmlspecialchars($streamId, ENT_QUOTES, 'UTF-8') ?>" data-type="movie" data-title="<?= htmlspecialchars($displayTitle, ENT_QUOTES, 'UTF-8') ?>" data-ext="<?= htmlspecialchars($extension, ENT_QUOTES, 'UTF-8') ?>" data-server-id="<?= htmlspecialchars($serverId, ENT_QUOTES, 'UTF-8') ?>"><i class="bi bi-download me-2" aria-hidden="true"></i><?= $isRtl ? 'تنزيل الملف' : 'Download file' ?></button>
+            <?php elseif (!$hasPaid): ?>
+                <a class="btn btn-outline-secondary" href="subscriptions.php"><i class="bi bi-lock me-2" aria-hidden="true"></i><?= $isRtl ? 'يتطلب التنزيل اشتراكًا مدفوعًا' : 'Downloads require a paid plan' ?></a>
+            <?php endif; ?>
         <?php endif; ?>
-    </div>
+    </section>
+
+    <section class="player-detail-layout mt-4">
+        <div class="min-w-0">
+            <?php if (in_array($type, ['live', 'm3u_direct'], true)): ?>
+                <section aria-labelledby="epg-title">
+                    <div class="player-section-heading"><h2 id="epg-title" class="h5 fw-semibold mb-1"><?= $isRtl ? 'دليل البرامج' : 'Program guide' ?></h2><p class="small text-muted mb-0"><?= $isRtl ? 'معلومات الدليل تظهر عند توفرها ولا تمنع التشغيل.' : 'Guide information appears when available and does not block playback.' ?></p></div>
+                    <div id="epg-container" class="py-2" aria-live="polite"><p class="small text-secondary mb-0"><?= $isRtl ? 'جارٍ جلب معلومات الدليل…' : 'Loading guide information…' ?></p></div>
+                </section>
+            <?php else: ?>
+                <section aria-labelledby="details-title">
+                    <div class="player-section-heading"><h2 id="details-title" class="h5 fw-semibold mb-1"><?= $isRtl ? 'تفاصيل المحتوى' : 'About this title' ?></h2></div>
+                    <div id="epg-container" class="py-2" aria-live="polite"><p class="small text-secondary mb-0"><?= $isRtl ? 'التفاصيل تظهر عند توفرها من المصدر.' : 'Details appear when available from the source.' ?></p></div>
+                </section>
+            <?php endif; ?>
+        </div>
+        <?php if ($type === 'series'): ?>
+            <aside aria-labelledby="episodes-title">
+                <div class="player-section-heading"><h2 id="episodes-title" class="h5 fw-semibold mb-1"><?= $isRtl ? 'المواسم والحلقات' : 'Seasons and episodes' ?></h2><p class="small text-muted mb-0"><?= $isRtl ? 'اختر حلقة لبدء تشغيلها.' : 'Choose an episode to play.' ?></p></div>
+                <div id="series-episodes-list" class="player-episodes" aria-live="polite"><p class="small text-secondary p-3"><?= $isRtl ? 'جارٍ تحميل الحلقات…' : 'Loading episodes…' ?></p></div>
+            </aside>
+        <?php endif; ?>
+    </section>
+</main>
+
+<div class="modal fade" id="downloadResolutionModal" tabindex="-1" aria-labelledby="downloadModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><div><h2 class="modal-title h5 fw-bold mb-1" id="downloadModalTitle"><i class="bi bi-download me-2 text-primary" aria-hidden="true"></i><?= $isRtl ? 'تنزيل الملف' : 'Download file' ?></h2><p id="downloadItemName" class="small text-secondary mb-0"></p></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="<?= $isRtl ? 'إغلاق' : 'Close' ?>"></button></div>
+        <div class="modal-body"><div class="d-flex gap-3 border border-secondary p-3 rounded"><i class="bi bi-info-circle text-secondary mt-1" aria-hidden="true"></i><p class="small text-secondary mb-0"><?= $isRtl ? 'سيتم تنزيل النسخة التي يوفرها المصدر. لا يقوم التطبيق بتحويل الملف إلى دقة أخرى.' : 'The source-provided file will be downloaded. The app does not convert it to another resolution.' ?></p></div><div id="download-error" class="alert alert-danger d-none mt-3" role="alert"></div></div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><?= $isRtl ? 'إلغاء' : 'Cancel' ?></button><button type="button" class="btn btn-primary download-source-option"><i class="bi bi-download me-2" aria-hidden="true"></i><?= $isRtl ? 'تنزيل جودة المصدر' : 'Download source quality' ?></button></div>
+    </div></div>
 </div>
 
-<!-- JS Libraries -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://vjs.zencdn.net/8.3.0/video.min.js"></script>
 <script>
-    const serverId = <?= json_encode($serverId) ?>;
-    const streamType = <?= json_encode($type) ?>;
-    const streamId = <?= json_encode($streamId) ?>;
-    const seriesId = <?= json_encode($seriesId) ?>;
-    const ext = <?= json_encode($ext) ?>;
-     let initialStreamUrl = <?= json_encode($directUrl) ?>;
-     let currentActiveStream = initialStreamUrl;
-
-    // تم تعطيل fluid وتفعيل responsive لمنع الارتفاعات والمساحات الوهمية بالشرائح
-    const player = videojs('iptv-player', {
-        controls: true,
-        autoplay: true,
-        preload: 'auto',
-        fluid: false,
-        responsive: true
-    });
-
-    // Auto-fallback to unified stream proxy on playback/CORS errors
-    let proxyRetryAttempted = false;
-    player.on('error', function() {
-        const err = player.error();
-        console.warn('Playback error encountered:', err);
-        if (!proxyRetryAttempted && currentActiveStream && !currentActiveStream.includes('action=stream_proxy')) {
-            proxyRetryAttempted = true;
-            console.log('Retrying stream through unified server proxy fallback...');
-            const proxyUrl = `api/unified_proxy.php?action=stream_proxy&server_id=${serverId}&url=${encodeURIComponent(currentActiveStream)}`;
-            player.src({ src: proxyUrl, type: 'application/x-mpegURL' });
-            player.play().catch(e => console.error('Proxy play error:', e));
-        }
-    });
-
-    function playUrl(url, type = 'live') {
-        if (!url) return;
-        currentActiveStream = url;
-        proxyRetryAttempted = false;
-        const mimeType = (type === 'live' || url.includes('.m3u8') || url.includes('.m3u')) ? 'application/x-mpegURL' : 'video/mp4';
-        player.src({ src: url, type: mimeType });
-        player.play().catch(e => console.log('Autoplay blocked:', e));
-    }
-
-    async function loadStream(id, type, extension = 'mp4') {
-        if (type === 'm3u_direct' && directUrl) {
-            const mimeType = (directUrl.includes('.m3u8') || directUrl.includes('.m3u')) ? 'application/x-mpegURL' : 'video/mp4';
-            player.src({ src: directUrl, type: mimeType });
-            player.play();
-            return;
-        }
-
-        let url = `api/unified_proxy.php?server_id=${serverId}&action=get_stream_url&type=${type}&stream_id=${id}&container_extension=${extension}`;
-        try {
-            const res = await fetch(url);
-            const data = await res.json();
-            if (data.stream_url) {
-                playUrl(data.stream_url, type);
-            }
-        } catch (err) {
-            console.error('Error loading stream:', err);
-        }
-    }
-
-<<<<<<< feat/installer-subscriptions-profile-8131710756592078168
-    if (streamType === 'm3u_direct' && directUrl) {
-        loadStream(null, 'm3u_direct');
-=======
-    if (initialStreamUrl) {
-        playUrl(initialStreamUrl, streamType);
->>>>>>> main
-    } else if (streamId && streamType !== 'series') {
-        loadStream(streamId, streamType, ext);
-    }
-
-    // Load EPG Program Guide or Metadata Info
-    async function loadEPG(id, type) {
-        const container = document.getElementById('epg-container');
-        if (!container) return;
-
-        try {
-            const res = await fetch(`api/unified_proxy.php?server_id=${serverId}&action=get_epg&type=${type}&stream_id=${id}&series_id=${seriesId || id}`);
-            const data = await res.json();
-
-            if (data.epg_listings && Array.isArray(data.epg_listings) && data.epg_listings.length > 0) {
-                let epgHtml = '<div class="list-group list-group-flush bg-transparent">';
-                data.epg_listings.forEach(item => {
-                    const title = item.title ? atob(item.title) : 'Program';
-                    const desc = item.description ? atob(item.description) : '';
-                    const start = item.start || '';
-                    const end = item.end || '';
-                    epgHtml += `
-                        <div class="list-group-item bg-transparent text-white border-secondary px-0 py-2">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h6 class="fw-bold text-info mb-1"><i class="bi bi-clock-history me-1"></i>${title}</h6>
-                                <small class="badge bg-secondary">${start} - ${end}</small>
-                            </div>
-                            ${desc ? `<p class="small text-white-50 mb-0">${desc}</p>` : ''}
-                        </div>
-                    `;
-                });
-                epgHtml += '</div>';
-                container.innerHTML = epgHtml;
-            } else if (data.info && (data.info.plot || data.info.description || data.info.genre)) {
-                const info = data.info;
-                container.innerHTML = `
-                    <div class="text-white">
-                        ${info.genre ? `<div class="badge bg-primary me-2 mb-2">${info.genre}</div>` : ''}
-                        ${info.releasedate ? `<div class="badge bg-secondary me-2 mb-2">${info.releasedate}</div>` : ''}
-                        ${info.director ? `<p class="small text-info mb-1"><i class="bi bi-camera-reels me-1"></i>Director: ${info.director}</p>` : ''}
-                        ${info.cast ? `<p class="small text-white-50 mb-2"><i class="bi bi-people me-1"></i>Cast: ${info.cast}</p>` : ''}
-                        <p class="mt-2 text-light mb-0">${info.plot || info.description || 'No detailed plot summary available.'}</p>
-                    </div>
-                `;
-            } else {
-                container.innerHTML = `<p class="text-white-50 small mb-0"><i class="bi bi-info-circle me-1"></i>No EPG guide or plot details available for this item.</p>`;
-            }
-        } catch (err) {
-            console.error('Error fetching EPG:', err);
-            container.innerHTML = `<p class="text-white-50 small mb-0"><i class="bi bi-exclamation-circle me-1"></i>EPG guide unavailable.</p>`;
-        }
-    }
-
-    if (streamId || seriesId) {
-        loadEPG(streamId || seriesId, streamType);
-    }
-
-    // Load Series Episodes List if series
-    if (streamType === 'series' && (seriesId || streamId)) {
-        const targetSeriesId = seriesId || streamId;
-        fetch(`api/unified_proxy.php?server_id=${serverId}&action=get_series_info&series_id=${targetSeriesId}`)
-            .then(res => res.json())
-            .then(data => {
-                const container = document.getElementById('series-episodes-list');
-                container.innerHTML = '';
-                const episodesObj = data.episodes || {};
-                const seasons = Object.keys(episodesObj);
-
-                if (seasons.length === 0) {
-                    container.innerHTML = '<div class="text-white-50 p-3">No episodes found.</div>';
-                    return;
-                }
-
-                seasons.forEach(seasonNum => {
-                    const seasonHeader = document.createElement('div');
-                    seasonHeader.className = 'fw-bold text-info mt-3 mb-2 small text-uppercase';
-                    seasonHeader.innerHTML = `<i class="bi bi-folder2-open me-1"></i>Season ${seasonNum}`;
-                    container.appendChild(seasonHeader);
-
-                    const epList = episodesObj[seasonNum] || [];
-                    epList.forEach(ep => {
-                        const epItem = document.createElement('a');
-                        epItem.href = '#';
-                        epItem.className = 'd-block glass-card p-2 mb-2 text-decoration-none text-white small episode-link';
-                        epItem.innerHTML = `<i class="bi bi-play-circle-fill text-primary me-2"></i>E${ep.episode_num}: ${ep.title || 'Episode ' + ep.episode_num}`;
-                        epItem.onclick = (e) => {
-                            e.preventDefault();
-                            document.querySelectorAll('.episode-link').forEach(l => l.classList.remove('border-primary'));
-                            epItem.classList.add('border-primary');
-                            document.getElementById('current-stream-title').textContent = ep.title || `Season ${seasonNum} Episode ${ep.episode_num}`;
-                            loadStream(ep.id, 'series', ep.container_extension || 'mp4');
-                        };
-                        container.appendChild(epItem);
-                    });
-                });
-
-                // Auto play first episode
-                const firstEp = container.querySelector('.episode-link');
-                if (firstEp) firstEp.click();
-            })
-            .catch(err => {
-                console.error(err);
-                document.getElementById('series-episodes-list').innerHTML = '<div class="text-danger p-3">Failed to load episodes.</div>';
-            });
-    }
-
-    // Download button handler for player page
-    document.querySelectorAll('.trigger-download-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const id = btn.getAttribute('data-id');
-            const type = btn.getAttribute('data-type');
-            const title = btn.getAttribute('data-title');
-            openDownloadModal(id, type, title);
-        });
-    });
+window.PLAYER_CONFIG = <?= json_encode([
+    'serverId' => $serverId,
+    'type' => $type,
+    'streamId' => $streamId,
+    'seriesId' => $seriesId,
+    'extension' => $extension,
+    'directKey' => $directKey,
+    'title' => $displayTitle,
+    'hasPaid' => $hasPaid,
+    'isRtl' => $isRtl,
+    'returnUrl' => $backHref,
+    'messages' => $isRtl ? [
+        'loading' => 'جارٍ تحميل البث…', 'autoplayBlocked' => 'اضغط تشغيل لبدء المشاهدة.', 'playbackError' => 'تعذر تحميل البث من المصدر.', 'retry' => 'إعادة محاولة التشغيل', 'epgEmpty' => 'لا تتوفر بيانات دليل البرامج لهذه القناة حاليًا.', 'detailsEmpty' => 'لا تتوفر تفاصيل إضافية لهذا المحتوى.', 'episodesLoading' => 'جارٍ تحميل الحلقات…', 'episodesEmpty' => 'لا توجد حلقات متاحة لهذا المسلسل.', 'episodesError' => 'تعذر تحميل الحلقات.', 'season' => 'الموسم', 'episode' => 'الحلقة', 'play' => 'تشغيل', 'source' => 'المصدر', 'noTitle' => 'بدون عنوان', 'sourceUnavailable' => 'تعذر الحصول على رابط التشغيل من المصدر.'
+    ] : [
+        'loading' => 'Loading stream…', 'autoplayBlocked' => 'Press play to start watching.', 'playbackError' => 'The source could not load this stream.', 'retry' => 'Retry playback', 'epgEmpty' => 'No program guide information is available for this channel right now.', 'detailsEmpty' => 'No additional details are available for this title.', 'episodesLoading' => 'Loading episodes…', 'episodesEmpty' => 'No episodes are available for this series.', 'episodesError' => 'Episodes could not be loaded.', 'season' => 'Season', 'episode' => 'Episode', 'play' => 'Play', 'source' => 'Source', 'noTitle' => 'Untitled', 'sourceUnavailable' => 'The source did not provide a playback URL.'
+    ]
+], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="https://vjs.zencdn.net/8.3.0/video.min.js"></script>
+<script src="assets/js/player.js"></script>
+<script src="assets/js/download.js"></script>
 </body>
 </html>

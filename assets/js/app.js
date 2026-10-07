@@ -1,692 +1,405 @@
-// assets/js/app.js - Main Application Controller for Xtream IPTV
-
+// Source-scoped catalog controller (PHP templates + Bootstrap + Fetch API).
 document.addEventListener('DOMContentLoaded', () => {
-    let activeTab = 'live';
-    let currentServerId = document.getElementById('server-select') ? document.getElementById('server-select').value : null;
-    let loadedItems = [];
-    let filteredItems = [];
-    let displayedCount = 0;
-    const BATCH_SIZE = 20;
-    let playerInstance = null;
-
+    const config = window.CATALOG_CONFIG || {};
     const contentGrid = document.getElementById('content-grid');
+    const serverSelect = document.getElementById('server-select');
     const categorySelect = document.getElementById('category-select');
     const searchInput = document.getElementById('search-input');
-    const serverSelect = document.getElementById('server-select');
+    const resultsTitle = document.getElementById('results-title');
+    const resultsContext = document.getElementById('results-context');
+    const resultsCount = document.getElementById('results-count');
+    const searchScopeName = document.getElementById('search-scope-name');
+    const resultsSentinel = document.getElementById('results-sentinel');
     const seriesDetailView = document.getElementById('series-detail-view');
-    const btnBackSeries = document.getElementById('btn-back-series');
-    const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
-    const sidebar = document.getElementById('sidebar');
+    const seriesSeasonsContainer = document.getElementById('series-seasons-container');
+    const state = {
+        source: config.source || (serverSelect && serverSelect.value) || '',
+        tab: ['live', 'movies', 'series'].includes(config.tab) ? config.tab : 'live',
+        items: [],
+        filtered: [],
+        rendered: 0,
+        batchSize: 30,
+        loadToken: 0,
+        category: config.category || '',
+        query: config.query || '',
+        observer: null
+    };
 
-    const hasPaidSub = typeof window.HAS_PAID_SUBSCRIPTION !== 'undefined' ? window.HAS_PAID_SUBSCRIPTION : false;
+    if (!contentGrid || !serverSelect) return;
+    if (searchInput) searchInput.value = state.query;
+    serverSelect.value = state.source;
 
-    // Sidebar Toggle Logic
-    if (sidebarToggleBtn && sidebar) {
-        sidebarToggleBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('collapsed');
-        });
+    function text(key) {
+        return typeof window.t === 'function' ? window.t(key) : key;
     }
 
-    // Initialize Video.js
-    if (document.getElementById('iptv-player')) {
-        playerInstance = videojs('iptv-player', {
-            controls: true,
-            autoplay: false,
-            preload: 'auto',
-            fluid: true
-        });
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[char]);
     }
 
-    // Server Selection Change
-    if (serverSelect) {
-        serverSelect.addEventListener('change', (e) => {
-            currentServerId = e.target.value;
-            if (searchInput) searchInput.value = '';
-            if (categorySelect) categorySelect.innerHTML = `<option value="" data-i18n="all_categories">${t('all_categories')}</option>`;
-            loadedItems = [];
-            filteredItems = [];
-            displayedCount = 0;
-
-            updateTabVisibility();
-            if (seriesDetailView) seriesDetailView.classList.add('d-none');
-            contentGrid.classList.remove('d-none');
-            loadTabContent();
-        });
+    function currentSourceName() {
+        const option = serverSelect.selectedOptions[0];
+        return option ? option.textContent.trim() : text('no_source');
     }
 
-    function updateTabVisibility() {
-        const isM3u = currentServerId && currentServerId.startsWith('m3u_');
-        document.querySelectorAll('.tab-xtream-only').forEach(el => {
-            if (isM3u) {
-                el.classList.add('d-none');
-            } else {
-                el.classList.remove('d-none');
-            }
+    function updateSourcePresentation() {
+        if (searchScopeName) searchScopeName.textContent = currentSourceName();
+        document.querySelectorAll('[data-source-type]').forEach((button) => {
+            const isCurrent = button.dataset.sourceType === (state.source.startsWith('m3u_') ? 'm3u' : 'xtream');
+            button.classList.toggle('active', isCurrent);
+            button.setAttribute('aria-pressed', String(isCurrent));
         });
-        if (isM3u && (activeTab === 'movies' || activeTab === 'series')) {
-            activeTab = 'live';
-            document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
-            const liveTab = document.querySelector('.tab-link[data-tab="live"]');
-            if (liveTab) liveTab.classList.add('active');
+        const availableSourceTypes = new Set([...serverSelect.options].filter((option) => option.value).map((option) => option.value.startsWith('m3u_') ? 'm3u' : 'xtream'));
+        document.querySelectorAll('[data-source-type]').forEach((button) => {
+            button.classList.toggle('d-none', !availableSourceTypes.has(button.dataset.sourceType));
+        });
+        document.querySelectorAll('.tab-xtream-only').forEach((element) => {
+            element.classList.toggle('d-none', state.source.startsWith('m3u_'));
+        });
+        if (state.source.startsWith('m3u_') && state.tab !== 'live') {
+            state.tab = 'live';
+            document.querySelectorAll('.tab-link').forEach((link) => link.classList.toggle('active', link.dataset.tab === 'live'));
         }
+        document.querySelectorAll('.tab-link').forEach((link) => {
+            const active = link.dataset.tab === state.tab;
+            link.classList.toggle('active', active);
+            link.setAttribute('aria-current', active ? 'page' : 'false');
+        });
+        if (resultsTitle) resultsTitle.textContent = `${text(`tab_${state.tab}`)} · ${text('catalog_results')}`;
+        if (resultsContext) resultsContext.textContent = `${text('source_label')}: ${currentSourceName()} · ${text('content_type')}: ${text(`tab_${state.tab}`)}`;
     }
 
-    updateTabVisibility();
-
-    // Tab Navigation
-    document.querySelectorAll('.tab-link').forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
-            link.classList.add('active');
-
-            activeTab = link.getAttribute('data-tab');
-            seriesDetailView.classList.add('d-none');
-            contentGrid.classList.remove('d-none');
-            loadTabContent();
-        });
-    });
-
-    // Category Filter Change
-    if (categorySelect) {
-        categorySelect.addEventListener('change', () => {
-            filterAndRenderItems();
-        });
+    function syncLocation() {
+        const url = new URL(window.location.href);
+        url.searchParams.set('source', state.source);
+        url.searchParams.set('tab', state.tab);
+        if (state.query) url.searchParams.set('q', state.query); else url.searchParams.delete('q');
+        if (state.category) url.searchParams.set('category', state.category); else url.searchParams.delete('category');
+        window.history.replaceState({}, '', url);
     }
 
-    // Search Input Event
-    if (searchInput) {
-        searchInput.addEventListener('input', () => {
-            filterAndRenderItems();
+    function apiUrl(path, params) {
+        const url = new URL(path, window.location.href);
+        Object.entries(params || {}).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value);
         });
+        return url.toString();
     }
 
-    // Back to Series Button
-    if (btnBackSeries) {
-        btnBackSeries.addEventListener('click', () => {
-            seriesDetailView.classList.add('d-none');
-            contentGrid.classList.remove('d-none');
-        });
-    }
-
-    // Load M3U Playlists into Selector Dropdown
-    loadM3uPlaylists();
-
-    const addM3uForm = document.getElementById('addM3uForm');
-    if (addM3uForm) {
-        addM3uForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('m3uNameInput').value;
-            const url = document.getElementById('m3uUrlInput').value;
-            const alertContainer = document.getElementById('m3uAlertContainer');
-
-            try {
-                const formData = new FormData();
-                formData.append('name', name);
-                formData.append('url', url);
-
-                const res = await fetch('api/proxy.php?action=add_m3u_playlist', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await res.json();
-
-                if (data.success) {
-                    alertContainer.innerHTML = `<div class="alert alert-success">Playlist added successfully!</div>`;
-                    await loadM3uPlaylists();
-                    if (serverSelect) {
-                        serverSelect.value = `m3u_${data.m3u_id}`;
-                        currentServerId = `m3u_${data.m3u_id}`;
-                        loadTabContent();
-                    }
-                    setTimeout(() => {
-                        const modalEl = document.getElementById('addM3uModal');
-                        const modal = bootstrap.Modal.getInstance(modalEl);
-                        if (modal) modal.hide();
-                    }, 1000);
-                } else {
-                    alertContainer.innerHTML = `<div class="alert alert-danger">${data.error || 'Failed to add M3U playlist.'}</div>`;
-                }
-            } catch (err) {
-                console.error(err);
-                alertContainer.innerHTML = `<div class="alert alert-danger">Error connecting to server.</div>`;
-            }
-        });
-    }
-
-    async function loadM3uPlaylists() {
-        const optgroup = document.getElementById('optgroup-m3u');
-        if (!optgroup) return;
-
-        try {
-            const res = await fetch('api/proxy.php?action=get_m3u_playlists');
-            const playlists = await res.json();
-
-            optgroup.innerHTML = '';
-            if (Array.isArray(playlists) && playlists.length > 0) {
-                playlists.forEach(pl => {
-                    const opt = document.createElement('option');
-                    opt.value = `m3u_${pl.id}`;
-                    opt.textContent = `${pl.name} (M3U)`;
-                    optgroup.appendChild(opt);
-                });
-
-                if ((!currentServerId || currentServerId === '') && serverSelect) {
-                    serverSelect.value = `m3u_${playlists[0].id}`;
-                    currentServerId = `m3u_${playlists[0].id}`;
-                    updateTabVisibility();
-                    loadTabContent();
-                }
-            } else {
-                optgroup.innerHTML = `<option value="" disabled>No M3U Playlists Added</option>`;
-            }
-        } catch (err) {
-            console.error('Error fetching M3U playlists:', err);
+    async function fetchJson(url) {
+        const response = await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+        const payload = await response.json();
+        if (!response.ok || (payload && payload.error)) {
+            throw new Error(payload && payload.error ? payload.error : text('error_loading'));
         }
+        return payload;
     }
 
-    // Initial Load
-    if (currentServerId) {
-        loadTabContent();
-    } else {
-        contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-muted">${t('error_loading')}</div>`;
+    function setLoading() {
+        contentGrid.setAttribute('aria-busy', 'true');
+        contentGrid.innerHTML = `<div class="catalog-state" role="status"><span class="catalog-state-icon"><i class="bi bi-arrow-repeat" aria-hidden="true"></i></span>${escapeHtml(text('loading'))}</div>`;
     }
 
-    async function loadTabContent() {
-        if (!currentServerId) return;
-        showLoading();
-
-        if (currentServerId.startsWith('m3u_')) {
-            const m3uId = currentServerId.replace('m3u_', '');
-            try {
-                const res = await fetch(`api/proxy.php?action=get_m3u_content&m3u_id=${m3uId}`);
-                const data = await res.json();
-
-                if (data.error) {
-                    contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-danger"><i class="bi bi-exclamation-triangle-fill me-2 fs-3"></i><br>${data.error}</div>`;
-                    return;
-                }
-
-                categorySelect.innerHTML = `<option value="" data-i18n="all_categories">${t('all_categories')}</option>`;
-                if (data.categories && Array.isArray(data.categories)) {
-                    data.categories.forEach(cat => {
-                        const opt = document.createElement('option');
-                        opt.value = cat.category_id;
-                        opt.textContent = cat.category_name;
-                        categorySelect.appendChild(opt);
-                    });
-                }
-
-                loadedItems = data.channels || [];
-                filterAndRenderItems();
-            } catch (err) {
-                console.error('Error loading M3U content:', err);
-                contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-danger">${t('error_loading')}</div>`;
-            }
-            return;
-        }
-
-        const realServerId = currentServerId.replace('xtream_', '');
-        if (!currentServerId) return;
-        showLoading();
-
-        const cleanServerId = currentServerId.replace('xtream_', '');
-
-        // 1. Fetch Categories
-        let catAction = 'get_live_categories';
-        if (activeTab === 'movies') catAction = 'get_vod_categories';
-        if (activeTab === 'series') catAction = 'get_series_categories';
-
-        try {
-            const catRes = await fetch(`api/proxy.php?server_id=${cleanServerId}&action=${catAction}`);
-            const categories = await catRes.json();
-
-            if (categories && categories.error) {
-                contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-danger"><i class="bi bi-exclamation-triangle-fill me-2 fs-3"></i><br>${categories.error}</div>`;
-                return;
-            }
-
-            // Populate category dropdown
-            categorySelect.innerHTML = `<option value="" data-i18n="all_categories">${t('all_categories')}</option>`;
-            if (Array.isArray(categories)) {
-                categories.forEach(cat => {
-                    const opt = document.createElement('option');
-                    opt.value = cat.category_id;
-                    opt.textContent = cat.category_name;
-                    categorySelect.appendChild(opt);
-                });
-            }
-
-            // 2. Fetch Streams/Series
-            await loadTabStreams('');
-        } catch (err) {
-            console.error('Error fetching data:', err);
-            contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-danger">${t('error_loading')}</div>`;
-        }
+    function setError(error) {
+        contentGrid.setAttribute('aria-busy', 'false');
+        contentGrid.innerHTML = `<div class="catalog-state" role="alert"><span class="catalog-state-icon"><i class="bi bi-exclamation-circle" aria-hidden="true"></i></span><p>${escapeHtml(error || text('error_loading'))}</p><button type="button" class="btn btn-outline-secondary mt-2" data-action="retry-load">${escapeHtml(text('retry'))}</button></div>`;
     }
 
-    async function loadTabStreams(categoryId = '') {
-        showLoading();
-
-        if (currentServerId.startsWith('m3u_')) {
-            filterAndRenderItems();
-            return;
-        }
-
-        const realServerId = currentServerId.replace('xtream_', '');
-        let streamAction = 'get_live_streams';
-        if (activeTab === 'movies') streamAction = 'get_vod_streams';
-        if (activeTab === 'series') streamAction = 'get_series';
-
-        let url = `api/proxy.php?server_id=${realServerId}&action=${streamAction}`;
-
-        try {
-            const res = await fetch(url);
-            const data = await res.json();
-
-            if (data.error) {
-                loadedItems = [];
-                contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-danger"><i class="bi bi-exclamation-triangle-fill me-2 fs-3"></i><br>${data.error}</div>`;
-            } else if (Array.isArray(data) && data.length > 0) {
-                loadedItems = data;
-                filterAndRenderItems();
-            } else {
-                loadedItems = [];
-                contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-muted">${t('no_content')}</div>`;
-            }
-        } catch (err) {
-            console.error('Error loading streams:', err);
-            contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-danger">${t('error_loading')}</div>`;
-        }
-    }
-
-    function filterAndRenderItems() {
-        const query = searchInput.value.toLowerCase().trim();
-        const selectedCategory = categorySelect ? categorySelect.value : '';
-
-        filteredItems = loadedItems.filter(item => {
-            const name = (item.name || item.title || '').toLowerCase();
-            const matchesQuery = name.includes(query);
-            const matchesCat = !selectedCategory || (item.category_id && String(item.category_id) === String(selectedCategory));
-            return matchesQuery && matchesCat;
+    function populateCategories(categories) {
+        if (!categorySelect) return;
+        const previousValue = state.category || categorySelect.value;
+        categorySelect.replaceChildren();
+        const allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = text('all_categories');
+        categorySelect.appendChild(allOption);
+        (Array.isArray(categories) ? categories : []).forEach((category) => {
+            const option = document.createElement('option');
+            option.value = String(category.category_id ?? '');
+            option.textContent = String(category.category_name ?? '');
+            categorySelect.appendChild(option);
         });
+        categorySelect.value = [...categorySelect.options].some((option) => option.value === previousValue) ? previousValue : '';
+        state.category = categorySelect.value;
+    }
 
-        contentGrid.innerHTML = '';
-        displayedCount = 0;
+    async function loadM3u() {
+        const playlistId = state.source.replace('m3u_', '');
+        const data = await fetchJson(apiUrl('api/proxy.php', { action: 'get_m3u_content', m3u_id: playlistId }));
+        populateCategories(data.categories || []);
+        return Array.isArray(data.channels) ? data.channels : [];
+    }
+
+    async function loadXtream() {
+        const serverId = state.source.replace('xtream_', '');
+        if (!serverId) return [];
+        const categoryAction = state.tab === 'movies' ? 'get_vod_categories' : (state.tab === 'series' ? 'get_series_categories' : 'get_live_categories');
+        const categories = await fetchJson(apiUrl('api/proxy.php', { server_id: serverId, action: categoryAction }));
+        if (!Array.isArray(categories)) throw new Error(text('error_loading'));
+        populateCategories(categories);
+
+        const action = state.tab === 'movies' ? 'get_vod_streams' : (state.tab === 'series' ? 'get_series' : 'get_live_streams');
+        const items = await fetchJson(apiUrl('api/proxy.php', { server_id: serverId, action, category_id: state.category }));
+        return Array.isArray(items) ? items : [];
+    }
+
+    function filterAndRender() {
+        state.query = (searchInput ? searchInput.value : '').trim();
+        state.category = categorySelect ? categorySelect.value : '';
+        const query = state.query.toLocaleLowerCase();
+        state.filtered = state.items.filter((item) => {
+            const name = String(item.name || item.title || '').toLocaleLowerCase();
+            const categoryMatches = !state.category || String(item.category_id || '') === state.category;
+            return name.includes(query) && categoryMatches;
+        });
+        state.rendered = 0;
+        contentGrid.replaceChildren();
+        contentGrid.setAttribute('aria-busy', 'false');
+        if (resultsCount) resultsCount.textContent = state.filtered.length ? `${state.filtered.length} ${text('results_label')}` : '';
+        syncLocation();
         appendNextBatch();
     }
 
-    // Infinite Scroll Event Listener
-    window.addEventListener('scroll', () => {
-        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 400) {
-            if (displayedCount < filteredItems.length) {
-                appendNextBatch();
-            }
+    function imageUrlFor(item) {
+        const raw = String(item.stream_icon || item.cover || item.icon || '').trim();
+        if (!raw || !/^https?:\/\//i.test(raw)) return '';
+        const cleanId = state.source.replace(/^(xtream_|m3u_)/, '');
+        const mediaType = state.tab === 'movies' ? 'movies' : (state.tab === 'series' ? 'series' : 'live');
+        return apiUrl('api/cache_image.php', { url: raw, server: `server_${cleanId}`, type: mediaType });
+    }
+
+    function playerUrl(item, directKey = '') {
+        const isM3u = state.source.startsWith('m3u_');
+        const isSeries = state.tab === 'series';
+        const itemId = item.stream_id ?? item.series_id ?? item.id ?? '';
+        const title = String(item.name || item.title || text('untitled'));
+        const params = new URLSearchParams({
+            server_id: isM3u ? state.source : state.source.replace('xtream_', ''),
+            type: isM3u ? 'm3u_direct' : state.tab === 'movies' ? 'movie' : state.tab,
+            title,
+            icon: imageUrlFor(item),
+            ext: String(item.container_extension || 'mp4'),
+            back_source: state.source,
+            back_tab: state.tab,
+            back_q: state.query,
+            back_category: state.category,
+            source_name: currentSourceName()
+        });
+        if (!isM3u) params.set(isSeries ? 'series_id' : 'stream_id', String(itemId));
+        if (isM3u && directKey) params.set('direct_key', directKey);
+        return `player.php?${params.toString()}`;
+    }
+
+    function renderItem(item) {
+        const type = state.source.startsWith('m3u_') ? 'live' : state.tab;
+        const isLive = type === 'live';
+        const isMovie = type === 'movies';
+        const isSeries = type === 'series';
+        const title = String(item.name || item.title || text('untitled'));
+        const imageUrl = imageUrlFor(item);
+        const itemId = String(item.stream_id ?? item.series_id ?? item.id ?? '');
+        const isM3uSource = state.source.startsWith('m3u_');
+        const itemPlayerUrl = isM3uSource ? '' : playerUrl(item);
+        const iconClass = isLive ? 'bi-broadcast' : isMovie ? 'bi-film' : 'bi-collection-play';
+        const artClass = `result-art${isLive ? '' : ' is-poster'}`;
+        let art = imageUrl
+            ? `<div class="${artClass}"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(title)}" loading="lazy" decoding="async"></div>`
+            : `<div class="${artClass}"><span class="result-art-fallback" aria-hidden="true"><i class="bi ${iconClass}"></i></span></div>`;
+        let actions = '';
+        if (state.source.startsWith('m3u_')) {
+            actions = item.url
+                ? `<button class="btn result-primary" type="button" data-action="play-m3u" data-result-index="${state.filtered.indexOf(item)}"><i class="bi bi-play-fill me-1" aria-hidden="true"></i>${escapeHtml(text('play_channel'))}</button>`
+                : `<button class="btn result-secondary" type="button" disabled><i class="bi bi-lock me-1" aria-hidden="true"></i>${escapeHtml(text('play_channel'))}</button>`;
+        } else if (isLive) {
+            actions = `<a class="btn result-primary" href="${escapeHtml(itemPlayerUrl)}"><i class="bi bi-play-fill me-1" aria-hidden="true"></i>${escapeHtml(text('play_channel'))}</a>`;
+        } else if (isMovie) {
+            const downloadAction = document.body.dataset.paid === '1'
+                ? `<button class="btn result-secondary trigger-download-btn" type="button" data-id="${escapeHtml(itemId)}" data-type="movie" data-title="${escapeHtml(title)}" data-ext="${escapeHtml(item.container_extension || 'mp4')}" data-server-id="${escapeHtml(state.source.replace('xtream_', ''))}"><i class="bi bi-download me-1" aria-hidden="true"></i>${escapeHtml(text('download'))}</button>`
+                : `<a class="btn result-secondary" href="subscriptions.php"><i class="bi bi-lock me-1" aria-hidden="true"></i>${escapeHtml(text('download_plan'))}</a>`;
+            actions = `<a class="btn result-primary" href="${escapeHtml(itemPlayerUrl || '#')}" ${itemPlayerUrl ? '' : 'aria-disabled="true"'}><i class="bi bi-play-fill me-1" aria-hidden="true"></i>${escapeHtml(text('play_movie'))}</a>${downloadAction}`;
+        } else if (isSeries) {
+            actions = `<a class="btn result-primary" href="${escapeHtml(itemPlayerUrl || '#')}" ${itemPlayerUrl ? '' : 'aria-disabled="true"'}><i class="bi bi-collection-play me-1" aria-hidden="true"></i>${escapeHtml(text('view_episodes'))}</a>`;
         }
-    });
+        const meta = isLive ? text('live_channel') : isMovie ? text('movie_title') : text('series_title');
+        const row = document.createElement('article');
+        row.className = 'result-row';
+        row.innerHTML = `${art}<div class="result-copy"><h3 title="${escapeHtml(title)}">${escapeHtml(title)}</h3><p>${escapeHtml(meta)} · ${escapeHtml(currentSourceName())}</p></div><div class="result-actions">${actions}</div>`;
+        row.querySelectorAll('.result-art img').forEach((image) => {
+            image.addEventListener('error', () => {
+                const artContainer = image.closest('.result-art');
+                if (!artContainer) return;
+                artContainer.replaceChildren();
+                const fallback = document.createElement('span');
+                fallback.className = 'result-art-fallback';
+                fallback.setAttribute('aria-hidden', 'true');
+                fallback.textContent = title.slice(0, 1).toLocaleUpperCase() || '•';
+                artContainer.appendChild(fallback);
+            }, { once: true });
+        });
+        return row;
+    }
 
     function appendNextBatch() {
-        if (!filteredItems || filteredItems.length === 0) {
-            contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-muted">${t('no_content')}</div>`;
+        if (state.filtered.length === 0) {
+            const isSearch = state.query !== '';
+            const message = isSearch ? text('no_search_results') : state.items.length ? text('no_category_results') : text('no_content');
+            contentGrid.innerHTML = `<div class="catalog-state"><span class="catalog-state-icon"><i class="bi ${isSearch ? 'bi-search' : 'bi-inbox'}" aria-hidden="true"></i></span><p>${escapeHtml(message)}</p>${isSearch ? `<button type="button" class="btn btn-outline-secondary btn-sm mt-2" data-action="clear-search">${escapeHtml(text('clear_search'))}</button>` : ''}</div>`;
             return;
         }
-
-        const batch = filteredItems.slice(displayedCount, displayedCount + BATCH_SIZE);
-        displayedCount += batch.length;
-
-        renderBatch(batch);
+        const batch = state.filtered.slice(state.rendered, state.rendered + state.batchSize);
+        batch.forEach((item) => contentGrid.appendChild(renderItem(item)));
+        state.rendered += batch.length;
     }
 
-    // Granular Zoom Engine with smooth step-by-step zooming
-    const btnZoomOut = document.getElementById('btn-grid-zoom-out');
-    const btnZoomReset = document.getElementById('btn-grid-zoom-reset');
-    const btnZoomIn = document.getElementById('btn-grid-zoom-in');
-    let currentZoomLevel = 3; // 1=smallest, 5=largest
-    const zoomLevels = ['grid-col-zoom-xs', 'grid-col-zoom-sm', 'grid-col-zoom-md', 'grid-col-zoom-lg', 'grid-col-zoom-xl'];
-
-    function getZoomClass(level) {
-        return zoomLevels[Math.max(0, Math.min(level, zoomLevels.length - 1))];
+    function setActiveTab(tab) {
+        state.tab = tab;
+        document.querySelectorAll('.tab-link').forEach((link) => {
+            const active = link.dataset.tab === tab;
+            link.classList.toggle('active', active);
+            link.setAttribute('aria-current', active ? 'page' : 'false');
+        });
+        updateSourcePresentation();
+        syncLocation();
+        loadContent();
     }
 
-    if (btnZoomOut) {
-        btnZoomOut.addEventListener('click', () => {
-            currentZoomLevel = Math.max(0, currentZoomLevel - 1);
-            setGridZoom(getZoomClass(currentZoomLevel));
-        });
-    }
-    if (btnZoomReset) {
-        btnZoomReset.addEventListener('click', () => {
-            currentZoomLevel = 2;
-            setGridZoom(getZoomClass(currentZoomLevel));
-        });
-    }
-    if (btnZoomIn) {
-        btnZoomIn.addEventListener('click', () => {
-            currentZoomLevel = Math.min(zoomLevels.length - 1, currentZoomLevel + 1);
-            setGridZoom(getZoomClass(currentZoomLevel));
-        });
-    }
-
-    function setGridZoom(zoomClass) {
-        document.querySelectorAll('#content-grid > div').forEach(col => {
-            col.className = `col-6 col-sm-4 ${zoomClass}`;
-        });
-    }
-
-    function renderBatch(items) {
-        items.forEach(item => {
-            const col = document.createElement('div');
-            col.className = `col-6 col-sm-4 ${getZoomClass(currentZoomLevel)}`;
-            col.className = `col-6 col-sm-4 ${getZoomClass(currentZoomLevel)}`;
-
-            const title = item.name || item.title || 'Untitled';
-            let rawIcon = item.stream_icon || item.cover || 'https://via.placeholder.com/300x400?text=No+Cover';
-            if (rawIcon.startsWith('http://') || rawIcon.startsWith('https://')) {
-                const cleanServer = currentServerId ? 'server_' + currentServerId.replace('xtream_', '').replace('m3u_', '') : 'global';
-                const mediaType = activeTab === 'movies' ? 'movies' : (activeTab === 'series' ? 'series' : 'live');
-                rawIcon = `api/cache_image.php?url=${encodeURIComponent(rawIcon)}&server=${encodeURIComponent(cleanServer)}&type=${mediaType}`;
-            }
-
-            const id = item.stream_id || item.series_id;
-            const containerExt = item.container_extension || 'mp4';
-            const directUrl = item.url || '';
-
-            // Determine card layout based on active tab
-            const isLive = activeTab === 'live';
-            const cardClass = isLive ? 'media-card-square' : 'media-poster-vertical';
-
-            let actionButtons = '';
-            if (currentServerId.startsWith('m3u_')) {
-                actionButtons = `
-                    <div class="d-grid gap-1 mt-2">
-                        <button class="btn btn-primary btn-sm play-m3u-btn" data-url="${encodeURIComponent(directUrl)}">
-                            <i class="bi bi-play-fill me-1"></i>${t('play')}
-                        </button>
-                    </div>`;
-            } else if (isLive) {
-                // Live TV: square card, no redundant play button on card, click entire card
-                actionButtons = `
-                    <div class="d-grid gap-1 mt-2" style="display:none;">
-                        <button class="btn btn-primary btn-sm play-btn" data-id="${id}" data-type="live" style="display:none;">
-                            <i class="bi bi-play-fill me-1"></i>${t('play')}
-                        </button>
-                    </div>`;
-            } else if (activeTab === 'movies') {
-                let downloadBtnHtml = '';
-                if (hasPaidSub) {
-                    downloadBtnHtml = `
-                        <button class="btn btn-outline-success btn-sm trigger-download-btn" data-id="${id}" data-type="movie" data-title="${encodeURIComponent(title)}" data-ext="${containerExt}" title="${t('download')}">
-                            <i class="bi bi-download"></i>
-                        </button>`;
-                } else {
-                    downloadBtnHtml = `
-                        <button class="btn btn-outline-secondary btn-sm disabled" disabled title="Download requires paid subscription">
-                            <i class="bi bi-lock-fill"></i>
-                        </button>`;
-                }
-
-                actionButtons = `
-                    <div class="d-flex gap-1 mt-2">
-                        <button class="btn btn-primary btn-sm flex-fill play-btn" data-id="${id}" data-type="movie" data-ext="${containerExt}">
-                            <i class="bi bi-play-fill me-1"></i>${t('play')}
-                        </button>
-                        ${downloadBtnHtml}
-                    </div>`;
-            } else if (activeTab === 'series') {
-                actionButtons = `
-                    <button class="btn btn-info btn-sm w-100 mt-2 series-btn" data-id="${id}" data-title="${encodeURIComponent(title)}">
-                        <i class="bi bi-list-nested me-1"></i>${t('episodes')}
-                    </button>`;
-            }
-
-            col.innerHTML = `
-                <div class="${cardClass}" data-id="${id}" data-type="${activeTab}">
-                    <div class="media-poster-wrapper">
-                        <img src="${rawIcon}" loading="lazy" class="media-poster" alt="${title}" onerror="this.src='https://via.placeholder.com/300x400?text=No+Cover'">
-                    </div>
-                    <div class="media-card-body">
-                        <div class="media-title" title="${title}">${title}</div>
-                        ${actionButtons}
-                    </div>
-                </div>
-            `;
-
-            contentGrid.appendChild(col);
-        });
-
-        // Attach event listeners
-        document.querySelectorAll('.play-m3u-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const directUrl = decodeURIComponent(btn.getAttribute('data-url'));
-                playDirectUrl(directUrl);
-            });
-        });
-
-        document.querySelectorAll('.play-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = btn.getAttribute('data-id');
-                const type = btn.getAttribute('data-type');
-                const ext = btn.getAttribute('data-ext') || 'mp4';
-                const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
-
-                const card = btn.closest('.media-card-square, .media-poster-vertical');
-                const title = card ? card.querySelector('.media-title').getAttribute('title') : 'Video';
-                const icon = card ? card.querySelector('.media-poster').getAttribute('src') : '';
-
-                window.location.href = `player.php?server_id=${cleanServerId}&type=${type}&stream_id=${id}&title=${encodeURIComponent(title)}&icon=${encodeURIComponent(icon)}&ext=${ext}`;
-            });
-        });
-
-        document.querySelectorAll('.series-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = btn.getAttribute('data-id');
-                const title = decodeURIComponent(btn.getAttribute('data-title'));
-                const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
-
-                const card = btn.closest('.media-card-square, .media-poster-vertical');
-                const icon = card ? card.querySelector('.media-poster').getAttribute('src') : '';
-
-                window.location.href = `player.php?server_id=${cleanServerId}&type=series&series_id=${id}&title=${encodeURIComponent(title)}&icon=${encodeURIComponent(icon)}`;
-            });
-        });
-
-        // Live TV: click entire card to play
-        document.querySelectorAll('.media-card-square').forEach(card => {
-            card.addEventListener('click', () => {
-                const id = card.getAttribute('data-id');
-                const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
-                const title = card.querySelector('.media-title').getAttribute('title');
-                const icon = card.querySelector('.media-poster').getAttribute('src');
-
-                window.location.href = `player.php?server_id=${cleanServerId}&type=live&stream_id=${id}&title=${encodeURIComponent(title)}&icon=${encodeURIComponent(icon)}`;
-            });
-        });
-
-        document.querySelectorAll('.trigger-download-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = btn.getAttribute('data-id');
-                const type = btn.getAttribute('data-type');
-                const title = decodeURIComponent(btn.getAttribute('data-title'));
-                openDownloadModal(id, type, title);
-            });
-        });
-    }
-
-    let pendingDownloadTarget = null;
-
-    function openDownloadModal(id, type, title) {
-        pendingDownloadTarget = { id, type, title };
-        const itemNameEl = document.getElementById('downloadItemName');
-        if (itemNameEl) {
-            itemNameEl.textContent = `"${title}" - ${t('download')}`;
+    async function loadContent() {
+        if (!state.source) {
+            contentGrid.setAttribute('aria-busy', 'false');
+            contentGrid.innerHTML = `<div class="catalog-state"><span class="catalog-state-icon"><i class="bi bi-hdd-network" aria-hidden="true"></i></span><p>${escapeHtml(text('no_source'))}</p><button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addPersonalServerModal">${escapeHtml(text('add_server'))}</button></div>`;
+            return;
         }
-        const dlModal = new bootstrap.Modal(document.getElementById('downloadResolutionModal'));
-        dlModal.show();
+        const token = ++state.loadToken;
+        contentGrid.setAttribute('aria-busy', 'true');
+        setLoading();
+        try {
+            state.items = state.source.startsWith('m3u_') ? await loadM3u() : await loadXtream();
+            if (token !== state.loadToken) return;
+            updateSourcePresentation();
+            filterAndRender();
+        } catch (error) {
+            if (token !== state.loadToken) return;
+            setError(error.message);
+        }
     }
 
-    document.querySelectorAll('.download-res-option').forEach(btn => {
-        btn.addEventListener('click', () => {
-            if (!pendingDownloadTarget) return;
-            const res = btn.getAttribute('data-res');
-            const { id, type, title } = pendingDownloadTarget;
+    serverSelect.addEventListener('change', () => {
+        state.source = serverSelect.value;
+        state.query = '';
+        state.category = '';
+        if (searchInput) searchInput.value = '';
+        updateSourcePresentation();
+        syncLocation();
+        loadContent();
+    });
 
-            const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
-            const dlUrl = `api/unified_proxy.php?server_id=${cleanServerId}&action=download_stream&type=${type}&stream_id=${id}&resolution=${encodeURIComponent(res)}&title=${encodeURIComponent(title)}&container_extension=mp4`;
-
-            // Trigger file download
-            const a = document.createElement('a');
-            a.href = dlUrl;
-            a.target = '_blank';
-            a.download = `${title}_${res}.mp4`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-
-            // Hide modal
-            const dlModalEl = document.getElementById('downloadResolutionModal');
-            const dlModal = bootstrap.Modal.getInstance(dlModalEl);
-            if (dlModal) dlModal.hide();
+    document.querySelectorAll('[data-source-type]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const wanted = button.dataset.sourceType === 'm3u' ? 'm3u_' : 'xtream_';
+            const option = [...serverSelect.options].find((candidate) => candidate.value.startsWith(wanted));
+            if (option) {
+                serverSelect.value = option.value;
+                serverSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            }
         });
     });
 
-    function playDirectUrl(streamUrl) {
-        if (!streamUrl) return;
-        const mimeType = (streamUrl.includes('.m3u8') || streamUrl.includes('.m3u')) ? 'application/x-mpegURL' : 'video/mp4';
-        playerInstance.src({ src: streamUrl, type: mimeType });
-        const playerModal = new bootstrap.Modal(document.getElementById('playerModal'));
-        playerModal.show();
-        playerInstance.play();
-    }
-
-    async function playStream(id, type, ext = 'mp4') {
-        const realServerId = currentServerId.replace('xtream_', '');
-        let fetchUrl = `api/proxy.php?server_id=${realServerId}&action=get_stream_url&type=${type}&stream_id=${id}&container_extension=${ext}`;
-        try {
-            const res = await fetch(fetchUrl);
-            const data = await res.json();
-
-            if (data.stream_url) {
-                playDirectUrl(data.stream_url);
+    document.querySelectorAll('.tab-link').forEach((link) => {
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (link.dataset.tab === 'movies' || link.dataset.tab === 'series') {
+                state.category = '';
+                if (categorySelect) categorySelect.value = '';
             }
-        } catch (err) {
-            console.error('Error fetching stream URL:', err);
+            setActiveTab(link.dataset.tab);
+        });
+    });
+
+    if (categorySelect) categorySelect.addEventListener('change', () => {
+        state.category = categorySelect.value;
+        if (state.source.startsWith('m3u_')) filterAndRender();
+        else loadContent();
+    });
+    if (searchInput) searchInput.addEventListener('input', filterAndRender);
+    const clearSearch = () => {
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.focus();
         }
-    }
+        filterAndRender();
+    };
+    document.getElementById('clear-search')?.addEventListener('click', clearSearch);
+    document.getElementById('btn-back-series')?.addEventListener('click', () => {
+        seriesDetailView.classList.add('d-none');
+        document.getElementById('content-grid')?.classList.remove('d-none');
+    });
 
-    async function openSeriesDetails(seriesId, title) {
-        showLoading();
-        document.getElementById('series-title').textContent = title;
-        const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
-
-        try {
-            const res = await fetch(`api/proxy.php?server_id=${cleanServerId}&action=get_series_info&series_id=${seriesId}`);
-            const data = await res.json();
-
-            contentGrid.classList.add('d-none');
-            seriesDetailView.classList.remove('d-none');
-
-            const container = document.getElementById('series-seasons-container');
-            container.innerHTML = '';
-
-            const episodesObj = data.episodes || {};
-            const seasons = Object.keys(episodesObj);
-
-            if (seasons.length === 0) {
-                container.innerHTML = `<div class="col-12 text-muted py-4">${t('no_content')}</div>`;
-                return;
+    contentGrid.addEventListener('click', (event) => {
+        const actionButton = event.target.closest('[data-action]');
+        if (!actionButton) return;
+        if (actionButton.dataset.action === 'retry-load') loadContent();
+        if (actionButton.dataset.action === 'clear-search') clearSearch();
+        if (actionButton.dataset.action === 'play-m3u') {
+            const item = state.filtered[Number(actionButton.dataset.resultIndex)];
+            if (!item || !item.url) return;
+            const key = `m3u-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            try {
+                sessionStorage.setItem(`xtream:m3u:${key}`, String(item.url));
+                window.location.href = playerUrl(item, key);
+            } catch (error) {
+                actionButton.disabled = true;
+                actionButton.title = text('direct_play_unavailable');
             }
-
-            seasons.forEach(seasonNum => {
-                const seasonCol = document.createElement('div');
-                seasonCol.className = 'col-12 mb-4';
-
-                const episodesList = episodesObj[seasonNum] || [];
-                let episodesHtml = '';
-
-                episodesList.forEach(ep => {
-                    const epTitle = ep.title || `Episode ${ep.episode_num}`;
-                    const epId = ep.id;
-                    const ext = ep.container_extension || 'mp4';
-
-                    let epDownloadBtn = '';
-                    if (hasPaidSub) {
-                        epDownloadBtn = `
-                            <button class="btn btn-outline-success btn-sm trigger-download-btn" data-id="${epId}" data-type="series" data-title="${encodeURIComponent(epTitle)}" data-ext="${ext}" title="${t('download')}">
-                                <i class="bi bi-download me-1"></i>${t('download')}
-                            </button>`;
-                    } else {
-                        epDownloadBtn = `
-                            <button class="btn btn-outline-secondary btn-sm disabled" disabled title="Download requires paid subscription">
-                                <i class="bi bi-lock-fill me-1"></i>${t('download')}
-                            </button>`;
-                    }
-
-                    episodesHtml += `
-                        <div class="episode-item">
-                            <div>
-                                <span class="fw-bold me-2"><i class="bi bi-play-circle-fill text-primary me-2"></i>${epTitle}</span>
-                                <small class="text-muted">(${t('season')} ${seasonNum}, ${t('episode')} ${ep.episode_num})</small>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-primary btn-sm play-ep-btn" data-id="${epId}" data-ext="${ext}">
-                                    <i class="bi bi-play-fill me-1"></i>${t('play')}
-                                </button>
-                                ${epDownloadBtn}
-                            </div>
-                        </div>
-                    `;
-                });
-
-                seasonCol.innerHTML = `
-                    <div class="card bg-secondary text-white border-0 shadow-sm">
-                        <div class="card-header border-bottom border-dark fw-bold">
-                            <i class="bi bi-collection-play me-2"></i>${t('season')} ${seasonNum}
-                        </div>
-                        <div class="card-body p-3">
-                            ${episodesHtml}
-                        </div>
-                    </div>
-                `;
-
-                container.appendChild(seasonCol);
-            });
-
-            // Attach play & download event handlers for episodes
-            document.querySelectorAll('.play-ep-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const epId = btn.getAttribute('data-id');
-                    const ext = btn.getAttribute('data-ext');
-                    playStream(epId, 'series', ext);
-                });
-            });
-
-            document.querySelectorAll('#series-seasons-container .trigger-download-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const id = btn.getAttribute('data-id');
-                    const type = btn.getAttribute('data-type');
-                    const title = decodeURIComponent(btn.getAttribute('data-title'));
-                    openDownloadModal(id, type, title);
-                });
-            });
-
-        } catch (err) {
-            console.error('Error fetching series details:', err);
-            seriesDetailView.classList.add('d-none');
-            contentGrid.classList.remove('d-none');
-            contentGrid.innerHTML = `<div class="col-12 text-center py-5 text-danger">${t('error_loading')}</div>`;
         }
+    });
+
+    if (resultsSentinel && 'IntersectionObserver' in window) {
+        state.observer = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting) && state.rendered < state.filtered.length) appendNextBatch();
+        }, { rootMargin: '300px 0px' });
+        state.observer.observe(resultsSentinel);
+    } else {
+        window.addEventListener('scroll', () => {
+            if (state.rendered < state.filtered.length && window.innerHeight + window.scrollY >= document.body.offsetHeight - 300) appendNextBatch();
+        }, { passive: true });
     }
 
-    function showLoading() {
-        contentGrid.innerHTML = `
-            <div class="col-12 text-center py-5">
-                <div class="spinner-border text-primary" role="status"></div>
-                <p class="mt-2 text-muted">${t('loading')}</p>
-            </div>`;
-    }
+    document.getElementById('addM3uForm')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const alertContainer = document.getElementById('m3uAlertContainer');
+        alertContainer.replaceChildren();
+        const formData = new FormData();
+        formData.append('name', document.getElementById('m3uNameInput').value);
+        formData.append('url', document.getElementById('m3uUrlInput').value);
+        try {
+            const response = await fetch('api/proxy.php?action=add_m3u_playlist', { method: 'POST', credentials: 'same-origin', body: formData });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || text('playlist_add_failed'));
+            const option = document.createElement('option');
+            option.value = `m3u_${data.m3u_id}`;
+            option.textContent = `${data.name} · M3U`;
+            serverSelect.appendChild(option);
+            serverSelect.value = option.value;
+            serverSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('addM3uModal')).hide();
+            event.target.reset();
+        } catch (error) {
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-danger mb-0';
+            alert.setAttribute('role', 'alert');
+            alert.textContent = error.message;
+            alertContainer.appendChild(alert);
+        }
+    });
+
+    window.addEventListener('languageChanged', () => {
+        updateSourcePresentation();
+        filterAndRender();
+    });
+
+    updateSourcePresentation();
+    syncLocation();
+    loadContent();
 });

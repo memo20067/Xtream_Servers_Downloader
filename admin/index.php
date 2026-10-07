@@ -1,60 +1,56 @@
 <?php
-// admin/index.php
+// Operational admin overview using the application's real records.
 require_once __DIR__ . '/header.php';
 
 $db = getDBConnection();
-$stmtServers = $db->query("SELECT COUNT(*) as cnt FROM servers WHERE user_id IS NULL");
-$globalServersCount = $stmtServers->fetch()['cnt'];
-
-$stmtUsers = $db->query("SELECT COUNT(*) as cnt FROM users");
-$totalUsersCount = $stmtUsers->fetch()['cnt'];
-
-$stmtPaid = $db->query("SELECT COUNT(*) as cnt FROM users WHERE has_paid_subscription = 1");
-$paidUsersCount = $stmtPaid->fetch()['cnt'];
+$globalServersCount = (int)$db->query('SELECT COUNT(*) AS cnt FROM servers WHERE user_id IS NULL')->fetch()['cnt'];
+$totalUsersCount = (int)$db->query('SELECT COUNT(*) AS cnt FROM users')->fetch()['cnt'];
+$paidUsersCount = (int)$db->query('SELECT COUNT(*) AS cnt FROM users WHERE has_paid_subscription = 1')->fetch()['cnt'];
+$pendingReceiptsCount = (int)$db->query("SELECT COUNT(*) AS cnt FROM payment_receipts WHERE status = 'pending'")->fetch()['cnt'];
 ?>
+<section class="mb-5 pb-4 border-bottom border-secondary">
+    <h1 class="h2 fw-bold mb-2"><?= htmlspecialchars(admin_t('dash_welcome'), ENT_QUOTES, 'UTF-8') ?></h1>
+    <p class="text-secondary mb-0"><?= htmlspecialchars(admin_t('dash_sub'), ENT_QUOTES, 'UTF-8') ?></p>
+</section>
 
-<div class="row g-4 mb-4">
-    <div class="col-md-4">
-        <div class="card bg-secondary text-white shadow-sm border-0">
-            <div class="card-body text-center p-4">
-                <i class="bi bi-hdd-network fs-1 text-info mb-2"></i>
-                <h5 class="card-title"><?= admin_t('stat_servers') ?></h5>
-                <h2 class="display-6 fw-bold mb-0"><?= $globalServersCount ?></h2>
-                <a href="servers.php" class="btn btn-outline-info btn-sm mt-3"><?= admin_t('nav_servers') ?></a>
-            </div>
-        </div>
+<section class="admin-summary mb-5 pb-4 border-bottom border-secondary" aria-label="<?= $isRtl ? 'ملخص المنصة' : 'Platform summary' ?>">
+    <div class="d-flex flex-wrap gap-4 gap-lg-5">
+        <a class="admin-summary-item text-decoration-none" href="servers.php"><span><?= htmlspecialchars(admin_t('stat_servers'), ENT_QUOTES, 'UTF-8') ?></span><strong><?= number_format($globalServersCount) ?></strong></a>
+        <a class="admin-summary-item text-decoration-none" href="users.php"><span><?= htmlspecialchars(admin_t('stat_users'), ENT_QUOTES, 'UTF-8') ?></span><strong><?= number_format($totalUsersCount) ?></strong></a>
+        <a class="admin-summary-item text-decoration-none" href="users.php"><span><?= htmlspecialchars(admin_t('stat_paid'), ENT_QUOTES, 'UTF-8') ?></span><strong><?= number_format($paidUsersCount) ?></strong></a>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-secondary text-white shadow-sm border-0">
-            <div class="card-body text-center p-4">
-                <i class="bi bi-people fs-1 text-success mb-2"></i>
-                <h5 class="card-title"><?= admin_t('stat_users') ?></h5>
-                <h2 class="display-6 fw-bold mb-0"><?= $totalUsersCount ?></h2>
-                <a href="users.php" class="btn btn-outline-success btn-sm mt-3"><?= admin_t('nav_users') ?></a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card bg-secondary text-white shadow-sm border-0">
-            <div class="card-body text-center p-4">
-                <i class="bi bi-star-fill fs-1 text-warning mb-2"></i>
-                <h5 class="card-title"><?= admin_t('stat_paid') ?></h5>
-                <h2 class="display-6 fw-bold mb-0"><?= $paidUsersCount ?></h2>
-                <a href="users.php" class="btn btn-outline-warning btn-sm mt-3"><?= admin_t('nav_users') ?></a>
-            </div>
-        </div>
-    </div>
-</div>
+</section>
 
-<div class="card bg-secondary text-white border-0 shadow-sm">
-    <div class="card-header border-bottom border-dark">
-        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i><?= admin_t('dash_welcome') ?></h5>
+<section class="mb-5" aria-labelledby="pending-receipts-title">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+        <div>
+            <h2 class="h4 fw-semibold mb-1" id="pending-receipts-title"><?= $isRtl ? 'مراجعة الإيصالات المعلّقة' : 'Review pending receipts' ?></h2>
+            <p class="small text-secondary mb-0"><?= $isRtl ? 'تظهر هنا الدفعات التي تحتاج إلى مراجعة.' : 'Receipts awaiting review are listed here.' ?></p>
+        </div>
+        <a class="btn btn-outline-secondary btn-sm" href="payments.php"><?= $isRtl ? 'سجل الدفعات' : 'Payment records' ?><i class="bi bi-arrow-up-left ms-2" aria-hidden="true"></i></a>
     </div>
-    <div class="card-body">
-        <p class="mb-2 fw-bold"><?= admin_t('dash_welcome') ?></p>
-        <p class="mb-0 text-muted"><?= admin_t('dash_sub') ?></p>
+    <?php if ($pendingReceiptsCount === 0): ?>
+        <div class="admin-empty-state border-top border-bottom border-secondary py-5 px-3 text-center">
+            <i class="bi bi-receipt text-secondary fs-3" aria-hidden="true"></i>
+            <p class="fw-semibold mt-3 mb-1"><?= $isRtl ? 'لا توجد إيصالات بانتظار المراجعة' : 'No receipts are waiting for review' ?></p>
+            <p class="small text-secondary mb-0"><?= $isRtl ? 'ستظهر الإيصالات الجديدة في هذا القسم.' : 'Newly submitted receipts will appear here.' ?></p>
+        </div>
+    <?php else: ?>
+        <a class="admin-work-row d-flex align-items-center justify-content-between gap-3 py-3 border-top border-bottom border-secondary text-decoration-none" href="payments.php">
+            <span class="d-flex align-items-center gap-3"><i class="bi bi-receipt text-primary" aria-hidden="true"></i><span class="text-white"><?= $isRtl ? 'دفعات بانتظار المراجعة' : 'Receipts awaiting review' ?></span></span>
+            <span class="badge text-bg-primary"><?= number_format($pendingReceiptsCount) ?></span>
+        </a>
+    <?php endif; ?>
+</section>
+
+<section aria-labelledby="admin-shortcuts-title">
+    <h2 class="h5 fw-semibold mb-3" id="admin-shortcuts-title"><?= $isRtl ? 'متابعة الإدارة' : 'Continue managing' ?></h2>
+    <div class="admin-work-list border-top border-bottom border-secondary">
+        <a class="admin-work-row d-flex align-items-center justify-content-between gap-3 py-3 border-bottom border-secondary text-decoration-none" href="servers.php"><span class="d-flex align-items-center gap-3"><i class="bi bi-hdd-network text-secondary" aria-hidden="true"></i><span class="text-white"><?= htmlspecialchars(admin_t('nav_servers'), ENT_QUOTES, 'UTF-8') ?></span></span><span class="small text-secondary"><?= $isRtl ? 'مصادر البث' : 'Broadcast sources' ?><i class="bi bi-arrow-up-left ms-2" aria-hidden="true"></i></span></a>
+        <a class="admin-work-row d-flex align-items-center justify-content-between gap-3 py-3 border-bottom border-secondary text-decoration-none" href="users.php"><span class="d-flex align-items-center gap-3"><i class="bi bi-people text-secondary" aria-hidden="true"></i><span class="text-white"><?= htmlspecialchars(admin_t('nav_users'), ENT_QUOTES, 'UTF-8') ?></span></span><span class="small text-secondary"><?= $isRtl ? 'الحسابات والاشتراكات' : 'Accounts and subscriptions' ?><i class="bi bi-arrow-up-left ms-2" aria-hidden="true"></i></span></a>
+        <a class="admin-work-row d-flex align-items-center justify-content-between gap-3 py-3 text-decoration-none" href="plans.php"><span class="d-flex align-items-center gap-3"><i class="bi bi-gem text-secondary" aria-hidden="true"></i><span class="text-white"><?= htmlspecialchars(admin_t('nav_plans'), ENT_QUOTES, 'UTF-8') ?></span></span><span class="small text-secondary"><?= $isRtl ? 'الأسعار والمزايا' : 'Pricing and benefits' ?><i class="bi bi-arrow-up-left ms-2" aria-hidden="true"></i></span></a>
     </div>
-</div>
+</section>
 
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
