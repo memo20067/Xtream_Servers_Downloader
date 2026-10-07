@@ -376,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderBatch(items) {
         items.forEach(item => {
             const col = document.createElement('div');
-            col.className = `col-6 col-sm-4 ${currentZoomClass}`;
+            col.className = `col-6 col-sm-4 ${getZoomClass(currentZoomLevel)}`;
 
             const title = item.name || item.title || 'Untitled';
             let rawIcon = item.stream_icon || item.cover || 'https://via.placeholder.com/300x400?text=No+Cover';
