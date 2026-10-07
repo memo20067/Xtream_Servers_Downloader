@@ -408,6 +408,9 @@ echo $tickerHtml;
 </script>
 
 <!-- JS Libraries -->
-
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://vjs.zencdn.net/8.3.0/video.min.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/app.js"></script>
 </body>
 </html>
