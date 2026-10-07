@@ -1,102 +1,168 @@
 <?php
-// admin/logs.php - Admin Error Logs Viewer
+// admin/logs.php - Categorized Multi-Log System
 require_once __DIR__ . '/header.php';
-require_once __DIR__ . '/../includes/logger.php';
 
+$db = getDBConnection();
 $msg = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'clear_logs') {
-    Logger::clearLogs();
+    $stmt = $db->prepare("DELETE FROM error_logs");
+    $stmt->execute();
     $msg = admin_t('msg_logs_cleared');
+
+    require_once __DIR__ . '/../includes/logger.php';
+    Logger::logSystem('All logs cleared by admin', 'INFO');
 }
 
-$levelFilter = $_GET['level'] ?? null;
-$search = $_GET['search'] ?? null;
+$categoryFilter = $_GET['category'] ?? '';
+$levelFilter = $_GET['level'] ?? '';
+$search = $_GET['search'] ?? '';
+$page = max(1, (int)($_GET['page'] ?? 1));
+$limit = 50;
+$offset = ($page - 1) * $limit;
 
-$logs = Logger::getLogs(150, $levelFilter, $search);
+$sql = "SELECT * FROM error_logs WHERE 1=1";
+$params = [];
+
+if ($levelFilter) {
+    $sql .= " AND level = ?";
+    $params[] = strtoupper($levelFilter);
+}
+
+if ($categoryFilter) {
+    $sql .= " AND action LIKE ?";
+    $params[] = "%{$categoryFilter}%";
+}
+
+if ($search) {
+    $sql .= " AND (message LIKE ? OR action LIKE ? OR server_id LIKE ? OR details LIKE ?)";
+    $term = "%{$search}%";
+    $params[] = $term;
+    $params[] = $term;
+    $params[] = $term;
+    $params[] = $term;
+}
+
+$countSql = str_replace("SELECT *", "SELECT COUNT(*) as cnt", $sql);
+$stmtCount = $db->prepare($countSql);
+$stmtCount->execute($params);
+$totalLogs = $stmtCount->fetch()['cnt'];
+$totalPages = max(1, (int)ceil($totalLogs / $limit));
+
+$sql .= " ORDER BY created_at DESC LIMIT $limit OFFSET $offset";
+$stmt = $db->prepare($sql);
+$stmt->execute($params);
+$logs = $stmt->fetchAll();
+
+$categories = [
+    'AUTH' => 'Authentication',
+    'API' => 'API Requests',
+    'PAYMENT' => 'Payments',
+    'SYSTEM' => 'System',
+    'ERROR' => 'Errors',
+    'STREAM' => 'Streaming',
+    'ADMIN' => 'Admin Actions'
+];
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="fw-bold mb-0"><i class="bi bi-journal-code text-warning me-2"></i><?= admin_t('logs_title') ?></h3>
-    <form method="POST" onsubmit="return confirm('Are you sure you want to clear all error logs?');">
+    <h3><i class="bi bi-journal-code me-2"></i><?= admin_t('logs_title') ?></h3>
+    <form method="POST" onsubmit="return confirm('Clear all logs?')" class="d-inline">
         <input type="hidden" name="action" value="clear_logs">
-        <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash me-1"></i><?= admin_t('btn_clear_logs') ?></button>
+        <button type="submit" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-trash me-1"></i><?= admin_t('btn_clear_logs') ?>
+        </button>
     </form>
 </div>
 
 <?php if ($msg): ?>
     <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <?= htmlspecialchars($msg) ?>
+        <i class="bi bi-check-circle-fill me-2"></i><?= htmlspecialchars($msg) ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 <?php endif; ?>
 
-<!-- Filter & Search Bar -->
-<div class="glass-panel p-3 mb-4">
-    <form method="GET" class="row g-2 align-items-center">
-        <div class="col-md-3">
-            <select name="level" class="form-select glass-input border-0" onchange="this.form.submit()">
-                <option value="">All Levels</option>
-                <option value="ERROR" <?= $levelFilter === 'ERROR' ? 'selected' : '' ?>>ERROR</option>
-                <option value="WARNING" <?= $levelFilter === 'WARNING' ? 'selected' : '' ?>>WARNING</option>
-                <option value="INFO" <?= $levelFilter === 'INFO' ? 'selected' : '' ?>>INFO</option>
-            </select>
-        </div>
-        <div class="col-md-7">
-            <input type="text" name="search" class="form-control glass-input border-0" placeholder="Search error messages or details..." value="<?= htmlspecialchars($search ?? '') ?>">
-        </div>
-        <div class="col-md-2">
-            <button type="submit" class="btn btn-primary w-100">Filter</button>
-        </div>
-    </form>
-</div>
-
-<div class="glass-panel p-3">
-    <div class="table-responsive">
-        <table class="table table-dark table-hover align-middle mb-0">
-            <thead>
-                <tr>
-                    <th style="width: 180px;"><?= admin_t('tbl_timestamp') ?></th>
-                    <th style="width: 100px;"><?= admin_t('tbl_level') ?></th>
-                    <th style="width: 140px;"><?= admin_t('tbl_action') ?></th>
-                    <th style="width: 160px;"><?= admin_t('tbl_host') ?></th>
-                    <th><?= admin_t('tbl_details') ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($logs)): ?>
-                    <tr>
-                        <td colspan="5" class="text-center py-4 text-muted">No error logs recorded. System operating normally.</td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($logs as $log): ?>
-                        <tr>
-                            <td class="small text-secondary"><?= htmlspecialchars($log['created_at']) ?></td>
-                            <td>
-                                <?php if ($log['level'] === 'ERROR'): ?>
-                                    <span class="badge bg-danger">ERROR</span>
-                                <?php elseif ($log['level'] === 'WARNING'): ?>
-                                    <span class="badge bg-warning text-dark">WARNING</span>
-                                <?php else: ?>
-                                    <span class="badge bg-info text-dark"><?= htmlspecialchars($log['level']) ?></span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="fw-bold text-info"><?= htmlspecialchars($log['action'] ?? 'N/A') ?></td>
-                            <td class="small text-truncate" style="max-width: 160px;" title="<?= htmlspecialchars($log['server_id'] ?? '') ?>">
-                                <?= htmlspecialchars($log['server_id'] ?? '-') ?>
-                            </td>
-                            <td>
-                                <div class="fw-bold mb-1"><?= htmlspecialchars($log['message']) ?></div>
-                                <?php if (!empty($log['details'])): ?>
-                                    <pre class="bg-black text-light p-2 rounded small mb-0" style="max-height: 120px; overflow-y: auto;"><?= htmlspecialchars($log['details']) ?></pre>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
+<div class="card bg-secondary text-white border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-3">
+                <select name="category" class="form-select bg-dark text-white border-secondary">
+                    <option value=""><?= $isRtl ? 'كل الفئات' : 'All Categories' ?></option>
+                    <?php foreach ($categories as $key => $label): ?>
+                        <option value="<?= $key ?>" <?= $categoryFilter === $key ? 'selected' : '' ?>><?= $label ?></option>
                     <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="level" class="form-select bg-dark text-white border-secondary">
+                    <option value=""><?= $isRtl ? 'كل المستويات' : 'All Levels' ?></option>
+                    <option value="INFO" <?= $levelFilter === 'INFO' ? 'selected' : '' ?>>INFO</option>
+                    <option value="WARNING" <?= $levelFilter === 'WARNING' ? 'selected' : '' ?>>WARNING</option>
+                    <option value="ERROR" <?= $levelFilter === 'ERROR' ? 'selected' : '' ?>>ERROR</option>
+                    <option value="CRITICAL" <?= $levelFilter === 'CRITICAL' ? 'selected' : '' ?>>CRITICAL</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <input type="text" name="search" class="form-control bg-dark text-white border-secondary" placeholder="<?= $isRtl ? 'بحث...' : 'Search...' ?>" value="<?= htmlspecialchars($search) ?>">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100"><?= $isRtl ? 'تصفية' : 'Filter' ?></button>
+            </div>
+        </form>
     </div>
 </div>
 
-<?php require_once __DIR__ . '/footer.php'; ?>
+<div class="card bg-secondary text-white border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th><?= admin_t('tbl_timestamp') ?></th>
+                        <th><?= $isRtl ? 'الفئة' : 'Category' ?></th>
+                        <th><?= admin_t('tbl_level') ?></th>
+                        <th><?= admin_t('tbl_action') ?></th>
+                        <th><?= $isRtl ? 'الرسالة' : 'Message' ?></th>
+                        <th><?= admin_t('tbl_details') ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($logs)): ?>
+                        <tr><td colspan="6" class="text-center py-4 text-muted"><?= $isRtl ? 'لا توجد سجلات' : 'No logs found.' ?></td></tr>
+                    <?php else: ?>
+                        <?php foreach ($logs as $log): ?>
+                            <tr>
+                                <td><small><?= htmlspecialchars($log['created_at']) ?></small></td>
+                                <td><span class="badge bg-secondary"><?= htmlspecialchars($log['action'] ?? 'N/A') ?></span></td>
+                                <td>
+                                    <?php
+                                    $levelClass = 'secondary';
+                                    if ($log['level'] === 'ERROR' || $log['level'] === 'CRITICAL') $levelClass = 'danger';
+                                    elseif ($log['level'] === 'WARNING') $levelClass = 'warning';
+                                    elseif ($log['level'] === 'INFO') $levelClass = 'info';
+                                    ?>
+                                    <span class="badge bg-<?= $levelClass ?>"><?= htmlspecialchars($log['level']) ?></span>
+                                </td>
+                                <td><code><?= htmlspecialchars($log['action'] ?? '-') ?></code></td>
+                                <td><?= htmlspecialchars($log['message']) ?></td>
+                                <td><small class="text-white-50"><?= htmlspecialchars(substr($log['details'] ?? '', 0, 100)) ?></small></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<?php if ($totalPages > 1): ?>
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+            <li class="page-item <?= $i === $page ? 'active' : '' ?>">
+                <a class="page-link bg-dark text-white border-secondary" href="?<?= http_build_query(array_merge($_GET, ['page' => $i])) ?>"><?= $i ?></a>
+            </li>
+        <?php endfor; ?>
+    </ul>
+</nav>
+<?php endif; ?>

@@ -354,18 +354,20 @@ $userAvatar = !empty($currentUser['avatar']) ? htmlspecialchars($currentUser['av
     </div>
 </div>
 
-<!-- Footer with Social Contact Links -->
+<!-- Fixed Footer with Social Contact Links -->
 <?php
 $wa = getSetting('whatsapp', '');
 $tg = getSetting('telegram', '');
 $fb = getSetting('facebook', '');
 $ig = getSetting('instagram', '');
 $appName = getSetting('app_name', 'Xtream IPTV Player');
+
+$hasSocialFooter = !empty($wa) || !empty($tg) || !empty($fb) || !empty($ig);
 ?>
-<?php if (!empty($wa) || !empty($tg) || !empty($fb) || !empty($ig)): ?>
-<footer class="text-center py-3 bg-dark border-top border-secondary text-white-50 mb-5">
+<?php if ($hasSocialFooter): ?>
+<footer class="fixed-social-footer text-center">
     <div class="container d-flex justify-content-center align-items-center gap-3">
-        <small class="fw-bold me-2"><?= htmlspecialchars($appName) ?> Support:</small>
+        <small class="fw-bold me-2 text-white"><?= htmlspecialchars($appName) ?> Support:</small>
         <?php if (!empty($wa)): ?>
             <a href="<?= htmlspecialchars(strpos($wa, 'http') === 0 ? $wa : 'https://wa.me/' . preg_replace('/[^0-9+]/', '', $wa)) ?>" target="_blank" class="btn btn-outline-success btn-sm"><i class="bi bi-whatsapp me-1"></i>WhatsApp</a>
         <?php endif; ?>
@@ -382,17 +384,30 @@ $appName = getSetting('app_name', 'Xtream IPTV Player');
 </footer>
 <?php endif; ?>
 
-<!-- News Ticker -->
+<!-- News Ticker (conditionally rendered) -->
 <?php
+ob_start();
 require_once __DIR__ . '/includes/news_ticker.php';
 render_news_ticker();
+$tickerHtml = ob_get_clean();
+echo $tickerHtml;
 ?>
 
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var hasTicker = <?= !empty($tickerHtml) ? 'true' : 'false' ?>;
+        var hasFooter = <?= $hasSocialFooter ? 'true' : 'false' ?>;
+
+        if (hasTicker) {
+            document.body.classList.add('has-ticker');
+        }
+        if (hasFooter) {
+            document.body.classList.add('has-footer');
+        }
+    });
+</script>
+
 <!-- JS Libraries -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://vjs.zencdn.net/8.3.0/video.min.js"></script>
-<script src="assets/js/i18n.js"></script>
-<script src="assets/js/app.js"></script>
 
 </body>
 </html>

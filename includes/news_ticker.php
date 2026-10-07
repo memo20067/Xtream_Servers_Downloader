@@ -24,9 +24,13 @@ function render_news_ticker() {
         $tickerItems = [];
     }
 
-    // Detect current language (check frontend session 'lang' or admin session 'admin_lang', default to 'ar')
+    // Detect current language
     $lang = $_SESSION['lang'] ?? $_SESSION['admin_lang'] ?? 'ar';
     $isAr = ($lang === 'ar');
+
+    if (empty($tickerItems)) {
+        return '';
+    }
 
     // Add subscription expiration warning if user has active plan
     if ($currentUser && (!empty($currentUser['subscription_plan_id']) || !empty($currentUser['has_paid_subscription']))) {
@@ -46,17 +50,6 @@ function render_news_ticker() {
         $tickerItems[] = [
             'severity' => 'warning',
             'message' => $warningMsg
-        ];
-    }
-
-    if (empty($tickerItems)) {
-        $defaultMsg = $isAr
-            ? 'مرحباً بك في مشغل Nova IPTV - محتوى البث المباشر والأفلام والمسلسلات عالية الجودة'
-            : 'Welcome to Nova IPTV Player - Premium Live Stream & On-Demand Content';
-
-        $tickerItems[] = [
-            'severity' => 'info',
-            'message' => $defaultMsg
         ];
     }
     ?>

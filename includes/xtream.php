@@ -173,6 +173,8 @@ class XtreamAPI {
 
     /**
      * Execute cURL request with standardized options and fallback.
+     * Uses single device identity User-Agent for all requests to ensure
+     * Xtream server sees consistent traffic regardless of concurrent users.
      */
     private function request(string $action, array $params = [], bool $useCache = true): array {
         // 1. Check local DB Cache first
@@ -186,7 +188,9 @@ class XtreamAPI {
         // 2. Build Request URL
         $url = $this->buildUrl($action, $params);
 
-        // 3. Configure Resilient cURL Session
+        // 3. Configure cURL Session with SINGLE DEVICE IDENTITY
+        // Consistent User-Agent ensures Xtream server perceives all traffic
+        // as originating from one device, enabling independent per-user playback
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL            => $url,
@@ -197,7 +201,7 @@ class XtreamAPI {
             CURLOPT_SSL_VERIFYHOST => false,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS      => 5,
-            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) IPTVPlayer/1.0',
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) XtreamGateway/1.0',
             CURLOPT_ENCODING       => ''
         ]);
 

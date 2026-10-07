@@ -143,6 +143,15 @@ function canAccessServer($serverId) {
     return false;
 }
 
+function canAccessM3u($m3uId) {
+    if (!isLoggedIn()) return false;
+    if (isAdmin()) return true;
+    $db = getDBConnection();
+    $stmt = $db->prepare("SELECT id FROM m3u_playlists WHERE id = ? AND (user_id = ? OR user_id IS NULL)");
+    $stmt->execute([$m3uId, $_SESSION['user_id']]);
+    return (bool)$stmt->fetch();
+}
+
 function getServerById($serverId) {
     if (!canAccessServer($serverId)) {
         return null;

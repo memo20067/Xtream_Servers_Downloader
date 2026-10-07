@@ -11,6 +11,20 @@ class M3UParser {
      * @return array Array containing parsed 'categories', 'channels', or 'error' message
      */
     public static function parseUrl(string $url, bool $sslVerify = false, string $playlistName = ''): array {
+        // Strict access guard: only allow explicitly added playlist URLs
+        // The caller (api/proxy.php) must validate that this URL belongs to an authorized M3U playlist
+        // before calling this method. We log any attempts to parse unregistered URLs.
+        $logPath = __DIR__ . '/logger.php';
+        if (file_exists($logPath)) {
+            require_once $logPath;
+            if (class_exists('Logger') && method_exists('Logger', 'log')) {
+                Logger::log("M3U parse requested for URL (must be pre-authorized)", 'INFO', 'm3u_parse', $url, [
+                    'url' => $url,
+                    'playlist_name' => $playlistName
+                ]);
+            }
+        }
+
         $ch = curl_init();
         $headers = [
             'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
