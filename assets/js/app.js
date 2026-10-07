@@ -337,24 +337,37 @@ document.addEventListener('DOMContentLoaded', () => {
         renderBatch(batch);
     }
 
-    // Grid Zooming Logic
+    // Granular Zoom Engine with smooth step-by-step zooming
     const btnZoomOut = document.getElementById('btn-grid-zoom-out');
     const btnZoomReset = document.getElementById('btn-grid-zoom-reset');
     const btnZoomIn = document.getElementById('btn-grid-zoom-in');
-    let currentZoomClass = 'grid-col-zoom-md';
+    let currentZoomLevel = 3; // 1=smallest, 5=largest
+    const zoomLevels = ['grid-col-zoom-xs', 'grid-col-zoom-sm', 'grid-col-zoom-md', 'grid-col-zoom-lg', 'grid-col-zoom-xl'];
+
+    function getZoomClass(level) {
+        return zoomLevels[Math.max(0, Math.min(level, zoomLevels.length - 1))];
+    }
 
     if (btnZoomOut) {
-        btnZoomOut.addEventListener('click', () => setGridZoom('grid-col-zoom-sm'));
+        btnZoomOut.addEventListener('click', () => {
+            currentZoomLevel = Math.max(0, currentZoomLevel - 1);
+            setGridZoom(getZoomClass(currentZoomLevel));
+        });
     }
     if (btnZoomReset) {
-        btnZoomReset.addEventListener('click', () => setGridZoom('grid-col-zoom-md'));
+        btnZoomReset.addEventListener('click', () => {
+            currentZoomLevel = 2;
+            setGridZoom(getZoomClass(currentZoomLevel));
+        });
     }
     if (btnZoomIn) {
-        btnZoomIn.addEventListener('click', () => setGridZoom('grid-col-zoom-lg'));
+        btnZoomIn.addEventListener('click', () => {
+            currentZoomLevel = Math.min(zoomLevels.length - 1, currentZoomLevel + 1);
+            setGridZoom(getZoomClass(currentZoomLevel));
+        });
     }
 
     function setGridZoom(zoomClass) {
-        currentZoomClass = zoomClass;
         document.querySelectorAll('#content-grid > div').forEach(col => {
             col.className = `col-6 col-sm-4 ${zoomClass}`;
         });
@@ -377,17 +390,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const containerExt = item.container_extension || 'mp4';
             const directUrl = item.url || '';
 
+            // Determine card layout based on active tab
+            const isLive = activeTab === 'live';
+            const cardClass = isLive ? 'media-card-square' : 'media-poster-vertical';
+
             let actionButtons = '';
             if (currentServerId.startsWith('m3u_')) {
                 actionButtons = `
-                    <button class="btn btn-primary btn-sm w-100 mt-2 play-m3u-btn" data-url="${encodeURIComponent(directUrl)}">
-                        <i class="bi bi-play-fill me-1"></i>${t('play')}
-                    </button>`;
-            } else if (activeTab === 'live') {
+                    <div class="d-grid gap-1 mt-2">
+                        <button class="btn btn-primary btn-sm play-m3u-btn" data-url="${encodeURIComponent(directUrl)}">
+                            <i class="bi bi-play-fill me-1"></i>${t('play')}
+                        </button>
+                    </div>`;
+            } else if (isLive) {
+                // Live TV: square card, no redundant play button on card, click entire card
                 actionButtons = `
-                    <button class="btn btn-primary btn-sm w-100 mt-2 play-btn" data-id="${id}" data-type="live">
-                        <i class="bi bi-play-fill me-1"></i>${t('play')}
-                    </button>`;
+                    <div class="d-grid gap-1 mt-2" style="display:none;">
+                        <button class="btn btn-primary btn-sm play-btn" data-id="${id}" data-type="live" style="display:none;">
+                            <i class="bi bi-play-fill me-1"></i>${t('play')}
+                        </button>
+                    </div>`;
             } else if (activeTab === 'movies') {
                 let downloadBtnHtml = '';
                 if (hasPaidSub) {
@@ -417,8 +439,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             col.innerHTML = `
-                <div class="media-card">
-                    <div class="media-poster-wrapper ${activeTab === 'live' ? 'square' : ''}">
+                <div class="${cardClass}" data-id="${id}" data-type="${activeTab}">
+                    <div class="media-poster-wrapper">
                         <img src="${rawIcon}" loading="lazy" class="media-poster" alt="${title}" onerror="this.src='https://via.placeholder.com/300x400?text=No+Cover'">
                     </div>
                     <div class="media-card-body">
@@ -431,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
             contentGrid.appendChild(col);
         });
 
-        // Attach event listeners to open dedicated player.php
+        // Attach event listeners
         document.querySelectorAll('.play-m3u-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -448,8 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ext = btn.getAttribute('data-ext') || 'mp4';
                 const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
 
-                // Find title and icon
-                const card = btn.closest('.media-card');
+                const card = btn.closest('.media-card-square, .media-poster-vertical');
                 const title = card ? card.querySelector('.media-title').getAttribute('title') : 'Video';
                 const icon = card ? card.querySelector('.media-poster').getAttribute('src') : '';
 
@@ -464,10 +485,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const title = decodeURIComponent(btn.getAttribute('data-title'));
                 const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
 
-                const card = btn.closest('.media-card');
+                const card = btn.closest('.media-card-square, .media-poster-vertical');
                 const icon = card ? card.querySelector('.media-poster').getAttribute('src') : '';
 
                 window.location.href = `player.php?server_id=${cleanServerId}&type=series&series_id=${id}&title=${encodeURIComponent(title)}&icon=${encodeURIComponent(icon)}`;
+            });
+        });
+
+        // Live TV: click entire card to play
+        document.querySelectorAll('.media-card-square').forEach(card => {
+            card.addEventListener('click', () => {
+                const id = card.getAttribute('data-id');
+                const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
+                const title = card.querySelector('.media-title').getAttribute('title');
+                const icon = card.querySelector('.media-poster').getAttribute('src');
+
+                window.location.href = `player.php?server_id=${cleanServerId}&type=live&stream_id=${id}&title=${encodeURIComponent(title)}&icon=${encodeURIComponent(icon)}`;
             });
         });
 
@@ -488,7 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pendingDownloadTarget = { id, type, title };
         const itemNameEl = document.getElementById('downloadItemName');
         if (itemNameEl) {
-            itemNameEl.textContent = `Target File: "${title}" (.mp4)`;
+            itemNameEl.textContent = `"${title}" - ${t('download')}`;
         }
         const dlModal = new bootstrap.Modal(document.getElementById('downloadResolutionModal'));
         dlModal.show();
@@ -501,13 +534,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const { id, type, title } = pendingDownloadTarget;
 
             const cleanServerId = currentServerId.replace('xtream_', '').replace('m3u_', '');
-            const dlUrl = `api/proxy.php?server_id=${cleanServerId}&action=download_stream&type=${type}&stream_id=${id}&resolution=${res}&title=${encodeURIComponent(title)}&container_extension=mp4`;
+            const dlUrl = `api/unified_proxy.php?server_id=${cleanServerId}&action=download_stream&type=${type}&stream_id=${id}&resolution=${encodeURIComponent(res)}&title=${encodeURIComponent(title)}&container_extension=mp4`;
 
             // Trigger file download
             const a = document.createElement('a');
             a.href = dlUrl;
             a.target = '_blank';
-            a.download = `${title}.mp4`;
+            a.download = `${title}_${res}.mp4`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

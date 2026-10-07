@@ -86,6 +86,47 @@ function initializeDatabase() {
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS payment_receipts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                plan_id INTEGER NOT NULL,
+                payment_method VARCHAR(50) NOT NULL,
+                amount DECIMAL(10, 2) DEFAULT NULL,
+                transaction_id VARCHAR(100) DEFAULT NULL,
+                receipt_path TEXT NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                verified_by INTEGER DEFAULT NULL,
+                verified_at DATETIME DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (plan_id) REFERENCES subscription_plans(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS custom_pages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title VARCHAR(255) NOT NULL,
+                slug VARCHAR(255) NOT NULL UNIQUE,
+                content TEXT NOT NULL,
+                placement VARCHAR(20) NOT NULL DEFAULT 'standalone',
+                position INTEGER DEFAULT 0,
+                is_visible TINYINT(1) NOT NULL DEFAULT 1,
+                created_by INTEGER DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS custom_widgets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                placement VARCHAR(20) NOT NULL DEFAULT 'global',
+                position INTEGER DEFAULT 0,
+                is_visible TINYINT(1) NOT NULL DEFAULT 1,
+                created_by INTEGER DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            );
+
             CREATE TABLE IF NOT EXISTS password_resets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 email VARCHAR(100) NOT NULL,
@@ -186,6 +227,47 @@ function initializeDatabase() {
                 expires_at DATETIME DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS payment_receipts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                plan_id INT NOT NULL,
+                payment_method VARCHAR(50) NOT NULL,
+                amount DECIMAL(10, 2) DEFAULT NULL,
+                transaction_id VARCHAR(100) DEFAULT NULL,
+                receipt_path TEXT NOT NULL,
+                status ENUM('pending', 'verified', 'rejected') NOT NULL DEFAULT 'pending',
+                verified_by INT DEFAULT NULL,
+                verified_at DATETIME DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (plan_id) REFERENCES subscription_plans(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS custom_pages (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                slug VARCHAR(255) NOT NULL UNIQUE,
+                content LONGTEXT NOT NULL,
+                placement ENUM('tab', 'button', 'homepage', 'standalone') NOT NULL DEFAULT 'standalone',
+                position INT DEFAULT 0,
+                is_visible TINYINT(1) NOT NULL DEFAULT 1,
+                created_by INT DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS custom_widgets (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                content LONGTEXT NOT NULL,
+                placement ENUM('global', 'homepage', 'player', 'admin') NOT NULL DEFAULT 'global',
+                position INT DEFAULT 0,
+                is_visible TINYINT(1) NOT NULL DEFAULT 1,
+                created_by INT DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
             );
 
             CREATE TABLE IF NOT EXISTS password_resets (

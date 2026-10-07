@@ -1,5 +1,5 @@
 <?php
-// admin/header.php
+// admin/header.php - Modern Sidebar Navigation Dashboard
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/admin_i18n.php';
 
@@ -25,43 +25,161 @@ $currentUser = getCurrentUser();
     <?php endif; ?>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <link rel="stylesheet" href="../assets/css/style.css">
+    <style>
+        .admin-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 260px;
+            background: rgba(22, 24, 34, 0.95);
+            backdrop-filter: blur(16px);
+            border-right: 1px solid var(--border-color);
+            z-index: 1030;
+            padding: 20px 0;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .admin-sidebar .sidebar-brand {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 10px;
+        }
+
+        .admin-sidebar .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 0;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            margin: 2px 10px;
+            border-radius: 10px;
+        }
+
+        .admin-sidebar .nav-link:hover {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .admin-sidebar .nav-link.active {
+            color: #ffffff;
+            background-color: var(--accent-blue);
+            box-shadow: 0 4px 15px rgba(0, 136, 255, 0.3);
+        }
+
+        .admin-sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+
+        .admin-main {
+            margin-left: 260px;
+            min-height: 100vh;
+        }
+
+        .admin-topbar {
+            position: sticky;
+            top: 0;
+            z-index: 1020;
+            background: rgba(15, 17, 23, 0.9);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 30px;
+        }
+
+        @media (max-width: 991px) {
+            .admin-sidebar {
+                transform: translateX(-100%);
+            }
+            .admin-sidebar.open {
+                transform: translateX(0);
+            }
+            .admin-main {
+                margin-left: 0;
+            }
+        }
+    </style>
 </head>
 <body class="bg-dark text-light">
-<nav class="navbar navbar-expand-lg navbar-dark bg-secondary px-3">
-    <a class="navbar-brand fw-bold me-3 ms-2" href="index.php"><i class="bi bi-shield-lock-fill me-2"></i><?= admin_t('admin_title') ?></a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNavbar">
-        <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="adminNavbar">
-        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-            <li class="nav-item">
-                <a class="nav-link" href="servers.php"><i class="bi bi-hdd-network me-1"></i><?= admin_t('nav_servers') ?></a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="users.php"><i class="bi bi-people me-1"></i><?= admin_t('nav_users') ?></a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="plans.php"><i class="bi bi-gem me-1"></i><?= admin_t('nav_plans') ?></a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="news.php"><i class="bi bi-megaphone me-1"></i><?= admin_t('nav_news') ?></a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="settings.php"><i class="bi bi-gear me-1"></i><?= admin_t('nav_settings') ?></a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="logs.php"><i class="bi bi-journal-code me-1"></i><?= admin_t('nav_logs') ?></a>
-            </li>
-        </ul>
-        <div class="d-flex align-items-center gap-2">
-            <!-- Language Switcher -->
-            <div class="btn-group btn-group-sm me-2" role="group">
-                <a href="?lang=ar" class="btn btn-outline-light <?= $adminLang === 'ar' ? 'active' : '' ?>">العربية</a>
-                <a href="?lang=en" class="btn btn-outline-light <?= $adminLang === 'en' ? 'active' : '' ?>">EN</a>
-            </div>
-            <a href="../index.php" class="btn btn-outline-light btn-sm"><i class="bi bi-play-circle me-1"></i><?= admin_t('nav_player') ?></a>
-            <a href="../logout.php" class="btn btn-danger btn-sm"><i class="bi bi-box-arrow-right me-1"></i><?= admin_t('nav_logout') ?></a>
+<nav class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-brand">
+        <a href="index.php" class="text-white text-decoration-none d-flex align-items-center gap-2">
+            <i class="bi bi-shield-lock-fill text-primary fs-3"></i>
+            <span class="fw-bold fs-5"><?= admin_t('admin_title') ?></span>
+        </a>
+    </div>
+    <ul class="nav flex-column">
+        <li class="nav-item">
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'index.php' ? 'active' : '' ?>" href="index.php">
+                <i class="bi bi-speedometer2"></i><?= admin_t('nav_dashboard') ?>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'servers.php' ? 'active' : '' ?>" href="servers.php">
+                <i class="bi bi-hdd-network"></i><?= admin_t('nav_servers') ?>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : '' ?>" href="users.php">
+                <i class="bi bi-people"></i><?= admin_t('nav_users') ?>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'plans.php' ? 'active' : '' ?>" href="plans.php">
+                <i class="bi bi-gem"></i><?= admin_t('nav_plans') ?>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'payments.php' ? 'active' : '' ?>" href="payments.php">
+                <i class="bi bi-credit-card"></i><?= $isRtl ? 'الدفعات' : 'Payments' ?>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'news.php' ? 'active' : '' ?>" href="news.php">
+                <i class="bi bi-megaphone"></i><?= admin_t('nav_news') ?>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'pages.php' ? 'active' : '' ?>" href="pages.php">
+                <i class="bi bi-file-earmark-code"></i><?= $isRtl ? 'الصفحات المخصصة' : 'Custom Pages' ?>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'widgets.php' ? 'active' : '' ?>" href="widgets.php">
+                <i class="bi bi-puzzle"></i><?= $isRtl ? 'الودجات' : 'Widgets' ?>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'logs.php' ? 'active' : '' ?>" href="logs.php">
+                <i class="bi bi-journal-code"></i><?= admin_t('nav_logs') ?>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : '' ?>" href="settings.php">
+                <i class="bi bi-gear"></i><?= admin_t('nav_settings') ?>
+            </a>
+        </li>
+    </ul>
+    <div class="mt-auto px-3 mt-4">
+        <div class="d-grid gap-2">
+            <a href="../index.php" class="btn btn-outline-info btn-sm"><i class="bi bi-play-circle me-1"></i><?= admin_t('nav_player') ?></a>
+            <a href="../logout.php" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right me-1"></i><?= admin_t('nav_logout') ?></a>
         </div>
     </div>
 </nav>
-<div class="container py-4">
+
+<div class="admin-main">
+    <div class="admin-topbar d-flex justify-content-between align-items-center">
+        <button class="btn btn-outline-light btn-sm" id="sidebar-toggle"><i class="bi bi-list"></i></button>
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-white-50 small"><?= htmlspecialchars($currentUser['username']) ?> (<?= admin_t('admin_title') ?>)</span>
+        </div>
+    </div>
+    <div class="p-4">

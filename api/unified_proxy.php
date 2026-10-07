@@ -1,5 +1,9 @@
 <?php
-// api/proxy.php - AJAX Proxy endpoint for Xtream API calls with authorization checks
+// api/unified_proxy.php - Unified Xtream Server Gateway
+// All Xtream server traffic routes through here to ensure:
+// 1. Single device identity per server (consistent User-Agent)
+// 2. No credential exposure to clients
+// 3. Independent concurrent playback per user
 
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/xtream.php';
@@ -7,7 +11,6 @@ require_once __DIR__ . '/../includes/m3u_parser.php';
 require_once __DIR__ . '/../includes/cache_helper.php';
 require_once __DIR__ . '/../includes/logger.php';
 
-// Enable CORS for AJAX and player requests
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
@@ -16,9 +19,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+// Strict access guard: reject any server_id not explicitly added by authorized user
+$serverId = $_GET['server_id'] ?? $_POST['server_id'] ?? null;
+
+if (!$serverId) {
+    header('Content-Type: application/json');
+    http_response_code(400);
+    echo json_encode(['error' => 'Server ID is required.']);
+    exit;
+}
+
+if (!canAccessServer($serverId)) {
+    header('Content-Type: application/json');
+    http_response_code(403);
+    echo json_encode(['error' => 'Access denied to this server.']);
+    exit;
+}
+
+$server = getServerById($serverId);
+if (!$server) {
+    header('Content-Type: application/json');
+    http_response_code(404);
+    echo json_encode(['error' => 'Server not found.']);
+    exit;
+}
+
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
-// Stream Proxy Endpoint (Can proxy streams / HLS with CORS headers for in-browser playback)
+// Stream Proxy: all stream traffic routes through here
 if ($action === 'stream_proxy') {
     $streamUrl = $_GET['url'] ?? '';
     if (empty($streamUrl)) {
@@ -33,14 +61,16 @@ if ($action === 'stream_proxy') {
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_MAXREDIRS      => 5,
-        CURLOPT_TIMEOUT        => 20,
+        CURLOPT_TIMEOUT        => 30,
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
-        CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) XtreamGateway/1.0',
+        CURLOPT_ENCODING       => '',
+        CURLOPT_HEADER         => false,
     ]);
     $response     = curl_exec($ch);
-    $httpCode     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $httpCode     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $contentType  = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     $effectiveUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL) ?: $streamUrl;
     curl_close($ch);
@@ -51,7 +81,7 @@ if ($action === 'stream_proxy') {
         exit;
     }
 
-    // Check if response is M3U / M3U8 playlist text
+    // Check if response is M3U/M3U8 playlist text
     $isM3u = (stripos($contentType, 'mpegurl') !== false || stripos($streamUrl, '.m3u') !== false || strpos($response, '#EXTM3U') === 0);
 
     if ($isM3u) {
@@ -61,10 +91,8 @@ if ($action === 'stream_proxy') {
         foreach ($lines as $line) {
             $trimmed = trim($line);
             if (!empty($trimmed) && strpos($trimmed, '#') !== 0) {
-                // Resolve relative chunk URL
                 $resolvedUrl = M3UParser::resolveRelativeUrl($effectiveUrl, $trimmed);
-                // Route through proxy to ensure CORS compliance for chunks
-                $output[] = 'api/proxy.php?action=stream_proxy&url=' . rawurlencode($resolvedUrl);
+                $output[] = 'api/unified_proxy.php?action=stream_proxy&server_id=' . urlencode($serverId) . '&url=' . rawurlencode($resolvedUrl);
             } else {
                 $output[] = $line;
             }
@@ -73,158 +101,23 @@ if ($action === 'stream_proxy') {
         exit;
     }
 
-    // Binary media chunk (.ts, .aac, .mp4)
+    // Binary media chunk
     header("Content-Type: " . ($contentType ?: 'video/mp2t'));
     header("Content-Length: " . strlen($response));
     echo $response;
     exit;
 }
 
-// All other API endpoints require logged in user
+// All other actions require logged in user
 if (!isLoggedIn()) {
     header('Content-Type: application/json');
     echo json_encode(['error' => 'Unauthorized access.']);
     exit;
 }
 
-// Handle M3U playlist endpoints
-if ($action === 'add_m3u_playlist') {
-    header('Content-Type: application/json');
-    $name = trim($_POST['name'] ?? '');
-    $url  = trim($_POST['url'] ?? '');
+// Initialize Xtream API with single device identity
+$api = new XtreamAPI($server['host'], $server['username'], $server['password'], $server['m3u_url'] ?? null, getDBConnection(), 86400);
 
-    if (empty($name) || empty($url)) {
-        echo json_encode(['error' => 'Playlist name and M3U/M3U8 URL are required.']);
-        exit;
-    }
-
-    try {
-        $pdo = getDBConnection();
-        $stmt = $pdo->prepare("INSERT INTO m3u_playlists (user_id, name, url) VALUES (?, ?, ?)");
-        $stmt->execute([$_SESSION['user_id'], $name, $url]);
-        $newId = $pdo->lastInsertId();
-
-        echo json_encode(['success' => true, 'm3u_id' => $newId, 'name' => $name]);
-    } catch (\Throwable $e) {
-        echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
-    }
-    exit;
-}
-
-if ($action === 'delete_m3u_playlist') {
-    header('Content-Type: application/json');
-    $id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
-    if ($id <= 0) {
-        echo json_encode(['error' => 'Invalid Playlist ID.']);
-        exit;
-    }
-
-    // Strict access guard: only allow deletion of explicitly authorized playlists
-    if (!canAccessM3u($id)) {
-        header('Content-Type: application/json');
-        echo json_encode(['error' => 'Access denied to this playlist.']);
-        exit;
-    }
-
-    try {
-        $pdo = getDBConnection();
-        $stmt = $pdo->prepare("DELETE FROM m3u_playlists WHERE id = ?");
-        $stmt->execute([$id]);
-
-        // Delete cache file if exists
-        $cacheFile = CacheHelper::getPlaylistCachePath('m3u_' . $id, 'm3u_content');
-        if (file_exists($cacheFile)) {
-            @unlink($cacheFile);
-        }
-
-        echo json_encode(['success' => true]);
-    } catch (\Throwable $e) {
-        echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
-    }
-    exit;
-}
-
-if ($action === 'get_m3u_playlists') {
-    header('Content-Type: application/json');
-    try {
-        $pdo = getDBConnection();
-        $stmt = $pdo->prepare("SELECT id, name, url FROM m3u_playlists WHERE user_id = ? OR user_id IS NULL ORDER BY name ASC");
-        $stmt->execute([$_SESSION['user_id']]);
-        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
-    } catch (\Throwable $e) {
-        echo json_encode([]);
-    }
-    exit;
-}
-
-$m3uId = $_GET['m3u_id'] ?? $_POST['m3u_id'] ?? null;
-
-if ($action === 'get_m3u_content') {
-    header('Content-Type: application/json');
-    if (!$m3uId) {
-        echo json_encode(['error' => 'M3U Playlist ID is required.']);
-        exit;
-    }
-
-    // Strict access guard: reject any M3U playlist not explicitly added by authorized user
-    if (!canAccessM3u($m3uId)) {
-        header('Content-Type: application/json');
-        echo json_encode(['error' => 'Access denied to this playlist.']);
-        exit;
-    }
-
-    // Check playlist_cache first
-    $cached = CacheHelper::getCachedPlaylist('m3u_' . $m3uId, 'm3u_content');
-    if ($cached && !empty($cached['data'])) {
-        echo json_encode($cached['data']);
-        exit;
-    }
-
-    try {
-        $pdo = getDBConnection();
-        $stmt = $pdo->prepare("SELECT id, name, url FROM m3u_playlists WHERE id = ?");
-        $stmt->execute([$m3uId]);
-        $playlist = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$playlist) {
-            echo json_encode(['error' => 'M3U Playlist not found.']);
-            exit;
-        }
-
-        $parsed = M3UParser::parseUrl($playlist['url'], false, $playlist['name'] ?? '');
-
-        if (!isset($parsed['error'])) {
-            CacheHelper::setCachedPlaylist('m3u_' . $m3uId, 'm3u_content', $parsed);
-        }
-        echo json_encode($parsed);
-    } catch (\Throwable $e) {
-        echo json_encode(['error' => 'Failed to parse M3U content: ' . $e->getMessage()]);
-    }
-    exit;
-}
-
-$serverId = $_GET['server_id'] ?? $_POST['server_id'] ?? null;
-
-if (!$serverId) {
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Server ID or M3U ID is required.']);
-    exit;
-}
-
-if (!canAccessServer($serverId)) {
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Access denied to this server.']);
-    exit;
-}
-
-$server = getServerById($serverId);
-if (!$server) {
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Server not found.']);
-    exit;
-}
-
-$api = new XtreamAPI($server['host'], $server['username'], $server['password'], $server['m3u_url'] ?? null);
 $categoryId = $_GET['category_id'] ?? null;
 $seriesId   = $_GET['series_id']   ?? null;
 $streamId   = $_GET['stream_id']   ?? null;
@@ -394,7 +287,7 @@ switch ($action) {
             exit;
         }
 
-        // Return proxied stream URL so credentials are never exposed
+        // Return proxied stream URL instead of raw Xtream URL
         $proxyBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
         $streamUrl = '';
 
@@ -408,6 +301,7 @@ switch ($action) {
             $streamUrl = $api->getLiveStreamUrl($streamId, 'm3u8');
         }
 
+        // Route through unified proxy so credentials are never exposed
         echo json_encode([
             'stream_url' => $proxyBase . '/api/unified_proxy.php?action=stream_proxy&server_id=' . urlencode($serverId) . '&url=' . rawurlencode($streamUrl)
         ]);
@@ -429,7 +323,6 @@ switch ($action) {
         if (empty($cleanTitle)) {
             $cleanTitle = 'video';
         }
-        $filename = $cleanTitle . '.mp4';
 
         if (!$streamId) {
             header('Content-Type: application/json');
@@ -448,11 +341,50 @@ switch ($action) {
             $rawUrl = $api->getLiveStreamUrl($streamId, 'mp4');
         }
 
-        // Proxy download through unified proxy
+        // Proxy download through our server to hide credentials
         $proxyBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
-        $downloadUrl = $proxyBase . '/api/unified_proxy.php?action=download_proxy&server_id=' . urlencode($serverId) . '&url=' . rawurlencode($rawUrl) . '&filename=' . rawurlencode($filename);
+        $downloadUrl = $proxyBase . '/api/unified_proxy.php?action=download_proxy&server_id=' . urlencode($serverId) . '&url=' . rawurlencode($rawUrl) . '&filename=' . rawurlencode($cleanTitle . '.mp4');
 
         header("Location: " . $downloadUrl);
+        exit;
+
+    case 'download_proxy':
+        // Internal download proxy endpoint
+        $downloadUrl = $_GET['url'] ?? '';
+        $filename = $_GET['filename'] ?? 'download.mp4';
+        if (empty($downloadUrl)) {
+            header('HTTP/1.1 400 Bad Request');
+            echo 'Missing download URL';
+            exit;
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $downloadUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_TIMEOUT        => 300,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) XtreamGateway/1.0',
+            CURLOPT_ENCODING       => '',
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: 'video/mp4';
+        curl_close($ch);
+
+        if ($httpCode === 200 && $response !== false) {
+            header('Content-Type: ' . $contentType);
+            header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
+            header('Content-Length: ' . strlen($response));
+            echo $response;
+        } else {
+            http_response_code($httpCode ?: 502);
+            echo "Download failed.";
+        }
         exit;
 
     default:

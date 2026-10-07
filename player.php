@@ -9,25 +9,14 @@ if (!isLoggedIn()) {
 
 $currentUser = getCurrentUser();
 
-<<<<<<< feat/installer-subscriptions-profile-8131710756592078168
-$serverId  = $_GET['server_id']  ?? null;
-$type      = $_GET['type']       ?? 'live'; // live, movie, series, m3u_direct
-$streamId  = $_GET['stream_id']   ?? null;
-$title     = $_GET['title']      ?? 'IPTV Stream';
-$icon      = $_GET['icon']       ?? '';
-$ext       = $_GET['ext']        ?? 'mp4';
-$seriesId  = $_GET['series_id']  ?? null;
-$directUrl = $_GET['direct_url'] ?? null;
-=======
-$serverId =$_GET['server_id'] ?? null;
-$type     =$_GET['type']      ?? 'live'; // live, movie, series
-$streamId =$_GET['stream_id']  ?? null;
-$title    =$_GET['title']     ?? 'IPTV Stream';
-$icon     =$_GET['icon']      ?? '';
-$ext      =$_GET['ext']       ?? 'mp4';
-$seriesId =$_GET['series_id'] ?? null;
-$streamUrl =$_GET['stream_url'] ?? null;
->>>>>>> main
+ $serverId  = $_GET['server_id']  ?? null;
+ $type      = $_GET['type']       ?? 'live'; // live, movie, series, m3u_direct
+ $streamId  = $_GET['stream_id']   ?? null;
+ $title     = $_GET['title']      ?? 'IPTV Stream';
+ $icon      = $_GET['icon']       ?? '';
+ $ext       = $_GET['ext']        ?? 'mp4';
+ $seriesId  = $_GET['series_id']  ?? null;
+ $directUrl = $_GET['direct_url'] ?? null;
 
 // Determine text direction for RTL/LTR sidebar layout
 $lang =$_SESSION['lang'] ?? 'ar';
@@ -116,9 +105,9 @@ $isRtl = ($lang === 'ar');
                 <?php if ($type === 'movie' || $type === 'vod'): ?>
                     <div>
                         <?php if (hasPaidSubscription()): ?>
-                            <a href="api/proxy.php?server_id=<?= htmlspecialchars($serverId) ?>&action=download_stream&type=movie&stream_id=<?= htmlspecialchars($streamId) ?>&title=<?= urlencode($title) ?>" class="btn btn-neon-blue btn-lg px-4" target="_blank">
-                                <i class="bi bi-download me-2"></i><?= $isRtl ? 'تحميل الفيلم (.mp4)' : 'Download Movie (.mp4)' ?>
-                            </a>
+                            <button class="btn btn-neon-blue btn-lg px-4 trigger-download-btn" data-id="<?= htmlspecialchars($streamId) ?>" data-type="movie" data-title="<?= htmlspecialchars($title) ?>" data-ext="<?= htmlspecialchars($ext) ?>">
+                                <i class="bi bi-download me-2"></i><?= $isRtl ? 'تحميل الفيلم' : 'Download Movie' ?>
+                            </button>
                         <?php else: ?>
                             <button class="btn btn-outline-secondary btn-lg px-4 disabled" disabled>
                                 <i class="bi bi-lock-fill me-2"></i><?= $isRtl ? 'التحميل يتطلب اشتراك مدفوع' : 'Download Requires Paid Subscription' ?>
@@ -170,12 +159,8 @@ $isRtl = ($lang === 'ar');
     const streamId = <?= json_encode($streamId) ?>;
     const seriesId = <?= json_encode($seriesId) ?>;
     const ext = <?= json_encode($ext) ?>;
-<<<<<<< feat/installer-subscriptions-profile-8131710756592078168
-    const directUrl = <?= json_encode($directUrl) ?>;
-=======
-    let initialStreamUrl = <?= json_encode($streamUrl) ?>;
-    let currentActiveStream = initialStreamUrl;
->>>>>>> main
+     let initialStreamUrl = <?= json_encode($directUrl) ?>;
+     let currentActiveStream = initialStreamUrl;
 
     // تم تعطيل fluid وتفعيل responsive لمنع الارتفاعات والمساحات الوهمية بالشرائح
     const player = videojs('iptv-player', {
@@ -186,15 +171,15 @@ $isRtl = ($lang === 'ar');
         responsive: true
     });
 
-    // Auto-fallback to stream_proxy on playback/CORS errors
+    // Auto-fallback to unified stream proxy on playback/CORS errors
     let proxyRetryAttempted = false;
     player.on('error', function() {
         const err = player.error();
         console.warn('Playback error encountered:', err);
         if (!proxyRetryAttempted && currentActiveStream && !currentActiveStream.includes('action=stream_proxy')) {
             proxyRetryAttempted = true;
-            console.log('Retrying stream through server proxy fallback...');
-            const proxyUrl = `api/proxy.php?action=stream_proxy&url=${encodeURIComponent(currentActiveStream)}`;
+            console.log('Retrying stream through unified server proxy fallback...');
+            const proxyUrl = `api/unified_proxy.php?action=stream_proxy&server_id=${serverId}&url=${encodeURIComponent(currentActiveStream)}`;
             player.src({ src: proxyUrl, type: 'application/x-mpegURL' });
             player.play().catch(e => console.error('Proxy play error:', e));
         }
@@ -217,7 +202,7 @@ $isRtl = ($lang === 'ar');
             return;
         }
 
-        let url = `api/proxy.php?server_id=${serverId}&action=get_stream_url&type=${type}&stream_id=${id}&container_extension=${extension}`;
+        let url = `api/unified_proxy.php?server_id=${serverId}&action=get_stream_url&type=${type}&stream_id=${id}&container_extension=${extension}`;
         try {
             const res = await fetch(url);
             const data = await res.json();
@@ -246,7 +231,7 @@ $isRtl = ($lang === 'ar');
         if (!container) return;
 
         try {
-            const res = await fetch(`api/proxy.php?server_id=${serverId}&action=get_epg&type=${type}&stream_id=${id}&series_id=${seriesId || id}`);
+            const res = await fetch(`api/unified_proxy.php?server_id=${serverId}&action=get_epg&type=${type}&stream_id=${id}&series_id=${seriesId || id}`);
             const data = await res.json();
 
             if (data.epg_listings && Array.isArray(data.epg_listings) && data.epg_listings.length > 0) {
@@ -295,7 +280,7 @@ $isRtl = ($lang === 'ar');
     // Load Series Episodes List if series
     if (streamType === 'series' && (seriesId || streamId)) {
         const targetSeriesId = seriesId || streamId;
-        fetch(`api/proxy.php?server_id=${serverId}&action=get_series_info&series_id=${targetSeriesId}`)
+        fetch(`api/unified_proxy.php?server_id=${serverId}&action=get_series_info&series_id=${targetSeriesId}`)
             .then(res => res.json())
             .then(data => {
                 const container = document.getElementById('series-episodes-list');
@@ -340,6 +325,16 @@ $isRtl = ($lang === 'ar');
                 document.getElementById('series-episodes-list').innerHTML = '<div class="text-danger p-3">Failed to load episodes.</div>';
             });
     }
+
+    // Download button handler for player page
+    document.querySelectorAll('.trigger-download-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const type = btn.getAttribute('data-type');
+            const title = btn.getAttribute('data-title');
+            openDownloadModal(id, type, title);
+        });
+    });
 </script>
 </body>
 </html>
