@@ -1,0 +1,17 @@
+# تعيين الخيار الافتراضي لجميع الملفات النصية
+* text=auto
+
+# إجبار ملفات البرمجة على استخدام LF دائماً (لضمان توافقها مع سيرفرات الاستضافة Linux)
+*.php text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.sql text eol=lf
+
+# تعريف الصور والملفات الثنائية حتى لا يتلفها Git
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.sqlite binary
