@@ -51,65 +51,201 @@ if (!$server) {
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
-// Stream Proxy: all stream traffic routes through here
+function createXtreamStreamToken(string $targetUrl): string {
+    if (session_status() !== PHP_SESSION_ACTIVE) return '';
+    $now = time();
+    if (!isset($_SESSION['xtream_stream_proxy']) || !is_array($_SESSION['xtream_stream_proxy'])) {
+        $_SESSION['xtream_stream_proxy'] = [];
+    }
+    foreach ($_SESSION['xtream_stream_proxy'] as $existingToken => $record) {
+        if (!is_array($record) || (int)($record['expires_at'] ?? 0) < $now) unset($_SESSION['xtream_stream_proxy'][$existingToken]);
+    }
+    $token = bin2hex(random_bytes(24));
+    $_SESSION['xtream_stream_proxy'][$token] = ['url' => $targetUrl, 'expires_at' => $now + 43200];
+    return $token;
+}
+
+function getXtreamStreamTarget(string $token): string {
+    if (session_status() !== PHP_SESSION_ACTIVE || !preg_match('/^[a-f0-9]{48}$/', $token)) return '';
+    $record = $_SESSION['xtream_stream_proxy'][$token] ?? null;
+    if (!is_array($record) || (int)($record['expires_at'] ?? 0) < time()) {
+        unset($_SESSION['xtream_stream_proxy'][$token]);
+        return '';
+    }
+    return is_string($record['url'] ?? null) ? $record['url'] : '';
+}
+
+// Stream live media incrementally; only HLS playlists are buffered and rewritten.
 if ($action === 'stream_proxy') {
-    $streamUrl = $_GET['url'] ?? '';
-    if (empty($streamUrl)) {
-        header('HTTP/1.1 400 Bad Request');
-        echo 'Missing stream url';
+    $streamUrl = getXtreamStreamTarget((string)($_GET['token'] ?? ''));
+    $remoteParts = parse_url($streamUrl);
+    if ($streamUrl === '' || !is_array($remoteParts) || empty($remoteParts['host']) || !in_array(strtolower((string)($remoteParts['scheme'] ?? '')), ['http', 'https'], true)) {
+        http_response_code($streamUrl === '' ? 403 : 400);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'The stream token is invalid or the stream URL is unavailable.';
         exit;
     }
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $streamUrl,
-        CURLOPT_RETURNTRANSFER => true,
+    @set_time_limit(0);
+    @ini_set('zlib.output_compression', '0');
+    $httpCode = 0;
+    $contentType = '';
+    $effectiveUrl = $streamUrl;
+    $playlistBody = '';
+    $probeBody = '';
+    $isPlaylist = preg_match('/\\.m3u8?(?:$|[?#])/i', $streamUrl) === 1;
+    $playlistTooLarge = false;
+    $headersPrepared = false;
+    $contentLength = '';
+    $contentRange = '';
+    $acceptRanges = '';
+    $rangeHeader = (string)($_SERVER['HTTP_RANGE'] ?? '');
+    $remoteRange = preg_match('/^bytes=(\\d*-\\d*)$/i', $rangeHeader, $rangeMatch) ? $rangeMatch[1] : '';
+
+    $sendStreamHeaders = static function () use (&$headersPrepared, &$httpCode, &$contentType, &$contentLength, &$contentRange, &$acceptRanges): void {
+        if ($headersPrepared || headers_sent()) return;
+        $headersPrepared = true;
+        http_response_code($httpCode >= 200 && $httpCode < 300 ? $httpCode : 502);
+        header('Content-Type: ' . ($contentType !== '' ? $contentType : 'application/octet-stream'));
+        if ($contentLength !== '' && ctype_digit($contentLength)) header('Content-Length: ' . $contentLength);
+        if ($contentRange !== '' && preg_match('/^bytes \\d+-\\d+\\/(?:\\d+|\\*)$/i', $contentRange)) header('Content-Range: ' . $contentRange);
+        if (strtolower($acceptRanges) === 'bytes') header('Accept-Ranges: bytes');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('X-Content-Type-Options: nosniff');
+        header('X-Accel-Buffering: no');
+    };
+    $flushStream = static function (): void {
+        while (ob_get_level() > 0) @ob_end_flush();
+        flush();
+    };
+
+    $ch = curl_init($streamUrl);
+    $curlOptions = [
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_MAXREDIRS      => 5,
-        CURLOPT_TIMEOUT        => 30,
-        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT        => 0,
+        CURLOPT_CONNECTTIMEOUT => 15,
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) XtreamGateway/1.0',
-        CURLOPT_ENCODING       => '',
-        CURLOPT_HEADER         => false,
-    ]);
-    $response     = curl_exec($ch);
-    $httpCode     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $contentType  = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-    $effectiveUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL) ?: $streamUrl;
+        CURLOPT_HEADERFUNCTION => static function ($curl, string $line) use (&$httpCode, &$contentType, &$isPlaylist, &$contentLength, &$contentRange, &$acceptRanges): int {
+            if (preg_match('/^HTTP\\/\\S+\\s+(\\d{3})/i', $line, $matches)) {
+                $httpCode = (int)$matches[1];
+                $contentType = '';
+                $contentLength = '';
+                $contentRange = '';
+                $acceptRanges = '';
+                return strlen($line);
+            }
+            if (stripos($line, 'Content-Type:') === 0) {
+                $contentType = trim(substr($line, strlen('Content-Type:')));
+                if (stripos($contentType, 'mpegurl') !== false) $isPlaylist = true;
+            } elseif (stripos($line, 'Content-Length:') === 0) {
+                $candidateLength = trim(substr($line, strlen('Content-Length:')));
+                if (ctype_digit($candidateLength)) $contentLength = $candidateLength;
+            } elseif (stripos($line, 'Content-Range:') === 0) {
+                $contentRange = trim(substr($line, strlen('Content-Range:')));
+            } elseif (stripos($line, 'Accept-Ranges:') === 0) {
+                $acceptRanges = trim(substr($line, strlen('Accept-Ranges:')));
+            }
+            return strlen($line);
+        },
+        CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use (&$httpCode, &$contentType, &$isPlaylist, &$playlistBody, &$probeBody, &$playlistTooLarge, $sendStreamHeaders, $flushStream): int {
+            $length = strlen($chunk);
+            if ($httpCode < 200 || $httpCode >= 300) return $length;
+
+            if ($isPlaylist) {
+                $playlistBody .= $chunk;
+                if (strlen($playlistBody) > 4194304) {
+                    $playlistTooLarge = true;
+                    return 0;
+                }
+                return $length;
+            }
+
+            if ($probeBody !== '') {
+                $probeBody .= $chunk;
+            } else {
+                $probeBody = $chunk;
+            }
+            $prefix = ltrim($probeBody, "\xEF\xBB\xBF \t\r\n");
+            if (strncmp($prefix, '#EXTM3U', 7) === 0) {
+                $isPlaylist = true;
+                $playlistBody = $probeBody;
+                $probeBody = '';
+                if (strlen($playlistBody) > 4194304) {
+                    $playlistTooLarge = true;
+                    return 0;
+                }
+                return $length;
+            }
+
+            if (strlen($probeBody) < 16) return $length;
+            if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+            $sendStreamHeaders();
+            echo $probeBody;
+            $probeBody = '';
+            $flushStream();
+            return $length;
+        },
+    ];
+    if ($remoteRange !== '') $curlOptions[CURLOPT_RANGE] = $remoteRange;
+    curl_setopt_array($ch, $curlOptions);
+
+    $transferResult = curl_exec($ch);
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = (string)(curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: $contentType);
+    $effectiveUrl = (string)(curl_getinfo($ch, CURLINFO_EFFECTIVE_URL) ?: $streamUrl);
+    $curlError = curl_error($ch);
     curl_close($ch);
 
-    if ($httpCode !== 200 || $response === false) {
-        http_response_code($httpCode ?: 502);
-        echo "Failed to fetch remote stream.";
+    if ($httpCode < 200 || $httpCode >= 300 || $transferResult === false || $playlistTooLarge) {
+        if (!headers_sent()) {
+            http_response_code($playlistTooLarge ? 502 : ($httpCode >= 400 ? $httpCode : 502));
+            header('Content-Type: text/plain; charset=utf-8');
+            echo $playlistTooLarge ? 'The source playlist is too large to process.' : 'The source could not provide this stream.';
+        }
         exit;
     }
 
-    // Check if response is M3U/M3U8 playlist text
-    $isM3u = (stripos($contentType, 'mpegurl') !== false || stripos($streamUrl, '.m3u') !== false || strpos($response, '#EXTM3U') === 0);
-
-    if ($isM3u) {
-        header("Content-Type: application/x-mpegURL");
-        $lines = explode("\n", $response);
+    if ($isPlaylist) {
         $output = [];
-        foreach ($lines as $line) {
+        foreach (preg_split('/\\r?\\n/', $playlistBody) as $line) {
             $trimmed = trim($line);
-            if (!empty($trimmed) && strpos($trimmed, '#') !== 0) {
-                $resolvedUrl = M3UParser::resolveRelativeUrl($effectiveUrl, $trimmed);
-                $output[] = $proxyEndpointPath . '?action=stream_proxy&server_id=' . urlencode($serverId) . '&url=' . rawurlencode($resolvedUrl);
-            } else {
+            if ($trimmed === '') {
                 $output[] = $line;
+                continue;
             }
+            if ($trimmed[0] === '#') {
+                $output[] = preg_replace_callback('/URI="([^"]+)"/i', static function (array $match) use ($effectiveUrl, $serverId, $proxyEndpointPath): string {
+                    $uri = trim($match[1]);
+                    if ($uri === '' || preg_match('/^(?:data:|skd:)/i', $uri)) return $match[0];
+                    $resolved = M3UParser::resolveRelativeUrl($effectiveUrl, $uri);
+                    $token = createXtreamStreamToken($resolved);
+                    if ($token === '') return $match[0];
+                    $proxied = $proxyEndpointPath . '?action=stream_proxy&server_id=' . rawurlencode((string)$serverId) . '&token=' . rawurlencode($token);
+                    return 'URI="' . $proxied . '"';
+                }, $line) ?? $line;
+                continue;
+            }
+            $resolvedUrl = M3UParser::resolveRelativeUrl($effectiveUrl, $trimmed);
+            $token = createXtreamStreamToken($resolvedUrl);
+            $output[] = $token === '' ? '' : $proxyEndpointPath . '?action=stream_proxy&server_id=' . rawurlencode((string)$serverId) . '&token=' . rawurlencode($token);
         }
+        if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+        header('Content-Type: application/x-mpegURL; charset=utf-8');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('X-Content-Type-Options: nosniff');
         echo implode("\n", $output);
         exit;
     }
 
-    // Binary media chunk
-    header("Content-Type: " . ($contentType ?: 'video/mp2t'));
-    header("Content-Length: " . strlen($response));
-    echo $response;
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+    if (!headers_sent()) {
+        $sendStreamHeaders();
+        if ($probeBody !== '') echo $probeBody;
+    }
+    $flushStream();
     exit;
 }
 
@@ -293,21 +429,26 @@ switch ($action) {
         }
 
         // Return a same-origin proxy path instead of exposing the source URL.
-        $streamUrl = '';
+        $rawStreamUrl = '';
 
         if ($type === 'live') {
-            $streamUrl = $api->getLiveStreamUrl($streamId, 'm3u8');
+            $rawStreamUrl = $api->getLiveStreamUrl($streamId, 'm3u8');
         } elseif ($type === 'movie' || $type === 'vod') {
-            $streamUrl = $api->getVodStreamUrl($streamId, $ext);
+            $rawStreamUrl = $api->getVodStreamUrl($streamId, $ext);
         } elseif ($type === 'series') {
-            $streamUrl = $api->getSeriesStreamUrl($streamId, $ext);
+            $rawStreamUrl = $api->getSeriesStreamUrl($streamId, $ext);
         } else {
-            $streamUrl = $api->getLiveStreamUrl($streamId, 'm3u8');
+            $rawStreamUrl = $api->getLiveStreamUrl($streamId, 'm3u8');
         }
 
-        // Route through unified proxy so credentials are never exposed
+        $streamToken = $rawStreamUrl !== '' ? createXtreamStreamToken($rawStreamUrl) : '';
+        if ($streamToken === '') {
+            http_response_code(502);
+            echo json_encode(['error' => 'The source did not provide a playback URL.']);
+            exit;
+        }
         echo json_encode([
-            'stream_url' => $proxyEndpointPath . '?action=stream_proxy&server_id=' . urlencode($serverId) . '&url=' . rawurlencode($streamUrl)
+            'stream_url' => $proxyEndpointPath . '?action=stream_proxy&server_id=' . rawurlencode((string)$serverId) . '&token=' . rawurlencode($streamToken)
         ]);
         break;
 

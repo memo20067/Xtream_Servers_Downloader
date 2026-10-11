@@ -12,6 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsSentinel = document.getElementById('results-sentinel');
     const seriesDetailView = document.getElementById('series-detail-view');
     const seriesSeasonsContainer = document.getElementById('series-seasons-container');
+    const cardSizeControl = document.getElementById('card-size-control');
+    const cardSizeValue = document.getElementById('card-size-value');
+    const cardSizeStorageKey = 'xtream-catalog-card-size';
+    const cardSizeWidths = { 1: '128px', 2: '156px', 3: '224px' };
     const state = {
         source: config.source || (serverSelect && serverSelect.value) || '',
         tab: ['live', 'movies', 'series'].includes(config.tab) ? config.tab : 'live',
@@ -28,9 +32,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!contentGrid || !serverSelect) return;
     if (searchInput) searchInput.value = state.query;
     serverSelect.value = state.source;
+    let initialCardSize = 2;
+    try {
+        const savedCardSize = Number(localStorage.getItem(cardSizeStorageKey));
+        if ([1, 2, 3].includes(savedCardSize)) initialCardSize = savedCardSize;
+    } catch (error) {
+        // Use the default size when browser storage is disabled.
+    }
+    applyCardSize(initialCardSize);
+    cardSizeControl?.addEventListener('input', () => applyCardSize(cardSizeControl.value, true));
 
     function text(key) {
         return typeof window.t === 'function' ? window.t(key) : key;
+    }
+
+    function applyCardSize(value, persist = false) {
+        const size = Math.max(1, Math.min(3, Number(value) || 2));
+        state.cardSize = size;
+        contentGrid.style.setProperty('--catalog-card-min-width', cardSizeWidths[size]);
+        if (cardSizeControl) {
+            cardSizeControl.value = String(size);
+            cardSizeControl.setAttribute('aria-valuetext', text(`card_size_${size}`));
+        }
+        if (cardSizeValue) cardSizeValue.textContent = text(`card_size_${size}`);
+        if (persist) {
+            try {
+                localStorage.setItem(cardSizeStorageKey, String(size));
+            } catch (error) {
+                // Keep the current layout usable when browser storage is disabled.
+            }
+        }
     }
 
     function escapeHtml(value) {
@@ -395,6 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('languageChanged', () => {
+        applyCardSize(state.cardSize);
         updateSourcePresentation();
         filterAndRender();
     });

@@ -16,6 +16,7 @@
     --app-font-sans: Inter, "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
     --app-radius: 4px;
     --sidebar-width: 264px;
+    --catalog-card-min-width: 156px;
 
     /* Bootstrap 5.3 theme tokens */
     --bs-body-bg: var(--app-bg);
@@ -282,47 +283,61 @@ body {
     content: "";
 }
 
-.catalog-results-header,
-.result-row {
+.catalog-results {
     display: grid;
-    grid-template-columns: 78px minmax(0, 1fr) 208px;
-    align-items: center;
-    column-gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(min(var(--catalog-card-min-width), 100%), 1fr));
+    align-items: stretch;
+    gap: 16px;
 }
 
-.catalog-results-header {
-    padding: 11px 16px;
-    color: #747474;
-    border-bottom: 1px solid #292929;
-    font-size: .7rem;
-    font-weight: 600;
+.catalog-result-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.catalog-size-control {
+    display: grid;
+    grid-template-columns: auto minmax(82px, 132px) auto;
+    align-items: center;
+    gap: 10px;
+}
+
+.catalog-size-control .form-range {
+    margin: 0;
+}
+
+.catalog-size-control output {
+    min-width: 42px;
+    text-align: end;
 }
 
 .result-row {
-    min-height: 100px;
-    padding: 15px 16px;
-    border-bottom: 1px solid #292929;
-    transition: background-color .15s ease;
+    display: flex;
+    min-width: 0;
+    overflow: hidden;
+    flex-direction: column;
+    background: var(--app-surface);
+    border: 1px solid #292929;
+    border-radius: var(--app-radius);
+    transition: border-color .15s ease, transform .15s ease;
 }
 
 .result-row:hover,
 .result-row:focus-within {
-    background: #101010;
+    border-color: #565656;
+    transform: translateY(-2px);
 }
 
 .result-art {
     display: grid;
-    width: 78px;
-    height: 68px;
+    width: 100%;
+    aspect-ratio: 1 / 1;
     overflow: hidden;
+    flex: 0 0 auto;
     place-items: center;
     color: #c9c9c9;
-    background: #181818;
-    border: 1px solid #292929;
-}
-
-.result-art.is-poster {
-    height: 104px;
+    background: var(--app-surface-raised);
 }
 
 .result-art img {
@@ -333,7 +348,8 @@ body {
 }
 
 .result-art.is-poster img {
-    object-fit: cover;
+    object-fit: contain;
+    background: #111;
 }
 
 .result-art-fallback {
@@ -343,40 +359,59 @@ body {
     padding: 6px;
     place-items: center;
     color: var(--app-text-secondary);
-    font-size: 1.2rem;
+    font-size: 1.5rem;
     font-weight: 700;
     text-align: center;
 }
 
 .result-copy {
     min-width: 0;
+    padding: 12px 13px 4px;
 }
 
 .result-copy h3 {
+    display: -webkit-box;
     overflow: hidden;
     color: #fff;
-    font-size: 1rem;
+    font-size: .95rem;
     font-weight: 700;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 .result-copy p {
-    margin-top: 6px;
+    display: -webkit-box;
+    overflow: hidden;
+    margin-top: 5px;
     color: #929292;
-    font-size: .78rem;
+    font-size: .74rem;
+    line-height: 1.4;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 .result-actions {
     display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
+    align-items: stretch;
+    gap: 7px;
+    padding: 8px 12px 12px;
+    margin-top: auto;
 }
 
 .result-actions .btn {
-    min-height: 40px;
-    white-space: nowrap;
+    display: inline-flex;
+    min-width: 0;
+    min-height: 38px;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    white-space: normal;
+}
+
+.catalog-state {
+    grid-column: 1 / -1;
 }
 
 .result-primary {
@@ -409,6 +444,131 @@ body {
     margin-bottom: 12px;
     color: var(--app-text-muted);
     font-size: 1.65rem;
+}
+
+/* First-run setup uses the same dark tokens and neutral Bootstrap surfaces. */
+.installer-page {
+    display: grid;
+    place-items: center;
+    padding: 28px 16px;
+}
+
+.installer-shell {
+    width: min(100%, 780px);
+    overflow: hidden;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: 6px;
+}
+
+.installer-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 24px clamp(18px, 4vw, 34px);
+    border-bottom: 1px solid var(--app-border);
+}
+
+.installer-steps {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    padding: 18px clamp(14px, 3vw, 28px);
+    background: #101010;
+}
+
+.installer-step {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+    color: var(--app-text-muted);
+    font-size: .72rem;
+}
+
+.installer-step-number {
+    display: grid;
+    width: 25px;
+    height: 25px;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid #444;
+    border-radius: 50%;
+}
+
+.installer-step.is-current {
+    color: var(--app-text);
+}
+
+.installer-step.is-current .installer-step-number,
+.installer-step.is-complete .installer-step-number {
+    color: #fff;
+    background: var(--app-accent);
+    border-color: var(--app-accent);
+}
+
+.installer-step-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.installer-body {
+    padding: clamp(22px, 4vw, 36px);
+}
+
+.installer-folder-list {
+    display: grid;
+    gap: 10px;
+}
+
+.installer-folder-list > div {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 14px;
+    color: var(--app-text-secondary);
+    background: #101010;
+    border: 1px solid var(--app-border);
+}
+
+.installer-folder-list i {
+    color: var(--app-accent);
+}
+
+.installer-footer {
+    padding: 14px clamp(22px, 4vw, 36px);
+    border-top: 1px solid var(--app-border);
+}
+
+.catalog-results {
+    --catalog-card-min-width: 156px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(var(--catalog-card-min-width), 100%), 1fr));
+    align-items: stretch;
+    gap: 16px;
+}
+
+.catalog-result-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.catalog-size-control {
+    display: grid;
+    grid-template-columns: auto minmax(82px, 132px) auto;
+    align-items: center;
+    gap: 10px;
+}
+
+.catalog-size-control .form-range {
+    margin: 0;
+}
+
+.catalog-size-control output {
+    min-width: 42px;
+    text-align: end;
 }
 
 /* Player surface and content */
@@ -968,32 +1128,28 @@ body {
         font-size: 1.65rem;
     }
 
-    .catalog-results-header {
-        display: none;
-    }
-
-    .result-row {
-        grid-template-columns: 64px minmax(0, 1fr);
+    .catalog-result-controls {
+        width: 100%;
+        justify-content: space-between;
         gap: 12px;
-        padding: 14px 4px;
     }
 
-    .result-art {
-        width: 64px;
-        height: 64px;
+    .catalog-size-control {
+        grid-template-columns: auto minmax(72px, 112px) auto;
+        gap: 7px;
     }
 
-    .result-art.is-poster {
-        height: 88px;
+    .installer-steps {
+        gap: 4px;
+        padding-inline: 12px;
     }
 
-    .result-actions {
-        grid-column: 1 / -1;
-        justify-content: stretch;
+    .installer-step {
+        justify-content: center;
     }
 
-    .result-actions .btn {
-        flex: 1;
+    .installer-step-title {
+        display: none;
     }
 
     .player-detail-layout {

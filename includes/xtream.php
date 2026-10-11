@@ -29,7 +29,11 @@ class XtreamAPI {
         ?PDO $pdo = null,
         int $cacheTtl = 43200
     ) {
-        $this->host     = rtrim(trim($host), '/');
+        $host = rtrim(trim($host), '/');
+        if ($host !== '' && !preg_match('#^https?://#i', $host)) {
+            $host = 'http://' . $host;
+        }
+        $this->host     = $host;
         $this->username = trim($username);
         $this->password = trim($password);
         $this->m3uUrl   = $m3uUrl ? trim($m3uUrl) : null;

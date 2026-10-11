@@ -158,9 +158,15 @@ $appName = getSetting('app_name', 'Xtream IPTV Player');
                 <h2 id="results-title" class="h5 fw-bold mb-1" data-i18n="catalog_results">Results</h2>
                 <p id="results-context" class="small text-muted mb-0" aria-live="polite"></p>
             </div>
-            <span id="results-count" class="small text-muted" aria-live="polite"></span>
+            <div class="catalog-result-controls">
+                <span id="results-count" class="small text-muted" aria-live="polite"></span>
+                <div class="catalog-size-control">
+                    <label for="card-size-control" class="small text-secondary text-nowrap" data-i18n="card_size">Card size</label>
+                    <input id="card-size-control" class="form-range" type="range" min="1" max="3" step="1" value="2" aria-valuetext="<?= $isRtl ? 'متوسط' : 'Medium' ?>" aria-describedby="card-size-value">
+                    <output id="card-size-value" class="small text-secondary" for="card-size-control"><?= $isRtl ? 'متوسط' : 'Medium' ?></output>
+                </div>
+            </div>
         </div>
-        <div class="catalog-results-header" aria-hidden="true"><span data-i18n="artwork">Artwork</span><span data-i18n="content_item">Content</span><span class="text-end" data-i18n="action">Action</span></div>
         <div id="content-grid" class="catalog-results" aria-live="polite" aria-busy="true">
             <div class="catalog-state"><span class="catalog-state-icon"><i class="bi bi-arrow-repeat" aria-hidden="true"></i></span><span data-i18n="loading">Loading content...</span></div>
         </div>
