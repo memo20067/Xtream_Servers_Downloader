@@ -256,6 +256,12 @@ if (!isLoggedIn()) {
     exit;
 }
 
+// Metadata endpoints may take a long time on some Xtream servers. Release PHP's
+// per-session lock after authorization so their response cannot block stream_proxy.
+if ($action !== 'get_stream_url' && session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
 // Initialize Xtream API with single device identity
 $api = new XtreamAPI($server['host'], $server['username'], $server['password'], $server['m3u_url'] ?? null, getDBConnection(), 86400);
 

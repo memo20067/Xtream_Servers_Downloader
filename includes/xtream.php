@@ -229,6 +229,17 @@ class XtreamAPI {
             ? "Xtream API cURL Error: {$curlErr} (HTTP {$httpCode})"
             : "Xtream API call failed or returned invalid JSON (HTTP {$httpCode})";
 
+        // M3U fallback can only rebuild catalog lists; fetching a full playlist for
+        // EPG, VOD details, or series details wastes time and may delay playback.
+        $fallbackActions = [
+            'get_live_categories', 'get_live_streams',
+            'get_vod_categories', 'get_vod_streams',
+            'get_series_categories', 'get_series'
+        ];
+        if (!in_array($action, $fallbackActions, true)) {
+            return ['error' => $logMsg];
+        }
+
         $this->logError($logMsg . ". Triggering M3U fallback.", "WARNING", $action, [
             'url'        => $url,
             'http_code'  => $httpCode,
